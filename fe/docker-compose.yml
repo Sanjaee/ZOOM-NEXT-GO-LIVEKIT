@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yourapp_frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-D8D3DA7A75F61ACD5A4CD579EDBBC}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-678801179210-i14120a94dc06q3gtjrdsjkl76o3i5ko.apps.googleusercontent.com}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-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}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-678801179210-i14120a94dc06q3gtjrdsjkl76o3i5ko.apps.googleusercontent.com}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000}
+      - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-dg75jeqnz}
+      - NEXT_PUBLIC_CLOUDINARY_API_KEY=${NEXT_PUBLIC_CLOUDINARY_API_KEY:-862886423732326}
+      - NEXT_PUBLIC_CLOUDINARY_API_SECRET=${NEXT_PUBLIC_CLOUDINARY_API_SECRET:-XV2xzR51wG0Sep8_nZu1hd7QeY8}
+    networks:
+      - frontend_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  frontend_network:
+    driver: bridge
+
