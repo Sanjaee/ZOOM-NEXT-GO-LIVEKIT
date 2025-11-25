@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,30 @@ interface ChatSidebarProps {
   roomId: string;
   userId: string;
   isOpen: boolean;
-  onClose?: () => void;
 }
 
-export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSidebarProps) {
+// Helper function to decode JWT token and get userId from database
+function getUserIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  
+  try {
+    // JWT token structure: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    // Decode payload (base64)
+    const payload = JSON.parse(atob(parts[1]));
+    
+    // Return userId from token (this is the database ID)
+    return payload.userId || payload.user_id || payload.sub || null;
+  } catch (error) {
+    console.error("[Chat] Error decoding token:", error);
+    return null;
+  }
+}
+
+export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps) {
+  const { data: session } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,30 +52,15 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Get userId from database via JWT token (not from session.user.id which is Google ID)
+  const databaseUserId = getUserIdFromToken(session?.accessToken as string) || getUserIdFromToken(api.getAccessToken()) || userId;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    if (isOpen && roomId) {
-      fetchMessages();
-      connectWebSocket();
-    }
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [isOpen, roomId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       setLoading(true);
       const token = api.getAccessToken();
@@ -84,9 +90,9 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
     } finally {
       setLoading(false);
     }
-  };
+  }, [roomId]);
 
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
     if (!roomId || !userId) return;
 
     const token = api.getAccessToken();
@@ -150,7 +156,25 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
     } catch (error) {
       console.error("Error connecting WebSocket:", error);
     }
-  };
+  }, [roomId, userId, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && roomId) {
+      fetchMessages();
+      connectWebSocket();
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [isOpen, roomId, fetchMessages, connectWebSocket]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || sending) return;
@@ -217,9 +241,9 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
   if (!isOpen) return null;
 
   return (
-    <Card className="w-80 h-full flex flex-col bg-gray-800 border-gray-700">
+    <Card className="w-full h-[74vh] flex flex-col rounded-none p-0 bg-gray-800 border-0 shadow-none overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="shrink-0 p-4 border-b border-gray-700">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-gray-300" />
           <h3 className="text-lg font-semibold text-white">Chat</h3>
@@ -227,7 +251,10 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4" ref={messagesContainerRef}>
+      <div 
+        className="flex-1 overflow-y-auto p-4 min-h-0 chat-scrollbar" 
+        ref={messagesContainerRef}
+      >
         {loading ? (
           <div className="text-center text-gray-400 py-8">Memuat pesan...</div>
         ) : messages.length === 0 ? (
@@ -235,27 +262,77 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
         ) : (
           <div className="space-y-3">
             {messages.map((msg) => {
-              const isOwnMessage = msg.user_id === userId;
+              // Validasi: gunakan databaseUserId dari JWT token (bukan session.user.id yang Google ID)
+              // Jika databaseUserId === msg.user_id maka itu pesan sendiri (di kanan)
+              // Sebaliknya jika tidak sama maka pesan orang lain (di kiri)
+              const messageUserId = String(msg.user_id || "").trim();
+              const currentUser = String(databaseUserId || "").trim();
+              const isOwnMessage = currentUser !== "" && currentUser === messageUserId;
+              
+              // Debug logging untuk memastikan validasi bekerja
+              if (messages.indexOf(msg) < 3) {
+                console.log("[Chat Debug]", {
+                  databaseUserId: currentUser,
+                  messageUserId,
+                  isOwnMessage,
+                  msgUserName: msg.user_name,
+                  sessionGoogleId: session?.user?.id,
+                  userIdProp: userId,
+                  match: currentUser === messageUserId,
+                  tokenUserId: getUserIdFromToken(session?.accessToken as string || api.getAccessToken()),
+                  usingToken: "✅ Menggunakan userId dari JWT token (database ID)"
+                });
+              }
+              
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}
+                  className={`flex w-full ${isOwnMessage ? "justify-end" : "justify-start"} mb-1`}
                 >
-                  {!isOwnMessage && (
-                    <span className="text-xs text-gray-400 mb-1">{msg.user_name}</span>
+                  {isOwnMessage ? (
+                    // PESAN SENDIRI - DI KANAN
+                    <div className="flex flex-col items-end max-w-[85%]">
+                      {/* Bubble pesan sendiri - BIRU di KANAN */}
+                      <div className="rounded-2xl px-4 py-2 shadow-lg bg-blue-600 text-white rounded-tr-md">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+                          {msg.message}
+                        </p>
+                      </div>
+                      
+                      {/* Waktu */}
+                      <span className="text-xs text-gray-500 mt-0.5 px-1">
+                        {formatTime(msg.created_at)}
+                      </span>
+                    </div>
+                  ) : (
+                    // PESAN ORANG LAIN - DI KIRI
+                    <div className="flex gap-2 max-w-[85%]">
+                      {/* Avatar untuk pesan orang lain */}
+                      <div className="shrink-0 w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-xs text-white font-semibold">
+                        {msg.user_name.charAt(0).toUpperCase()}
+                      </div>
+                      
+                      {/* Container pesan */}
+                      <div className="flex flex-col items-start">
+                        {/* Nama pengirim */}
+                        <span className="text-xs text-gray-400 mb-1 px-1">
+                          {msg.user_name}
+                        </span>
+                        
+                        {/* Bubble pesan orang lain - ABU-ABU di KIRI */}
+                        <div className="rounded-2xl px-4 py-2 shadow-lg bg-gray-700 text-gray-100 rounded-tl-md">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+                            {msg.message}
+                          </p>
+                        </div>
+                        
+                        {/* Waktu */}
+                        <span className="text-xs text-gray-500 mt-0.5 px-1">
+                          {formatTime(msg.created_at)}
+                        </span>
+                      </div>
+                    </div>
                   )}
-                  <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 ${
-                      isOwnMessage
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-100"
-                    }`}
-                  >
-                    <p className="text-sm break-words">{msg.message}</p>
-                  </div>
-                  <span className="text-xs text-gray-500 mt-1">
-                    {formatTime(msg.created_at)}
-                  </span>
                 </div>
               );
             })}
@@ -265,7 +342,7 @@ export default function ChatSidebar({ roomId, userId, isOpen, onClose }: ChatSid
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-700">
+      <div className="shrink-0 p-4 border-t border-gray-700">
         <div className="flex gap-2">
           <Input
             value={newMessage}

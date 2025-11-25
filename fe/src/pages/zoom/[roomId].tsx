@@ -583,9 +583,9 @@ export default function ZoomCallPage() {
         </div>
 
         {/* Main Content with Sidebar */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Video Grid */}
-          <div className={`flex-1 p-6 overflow-auto transition-all duration-300 ${chatOpen ? "mr-0" : ""}`}>
+          <div className={`flex-1 p-6 overflow-auto transition-all duration-300 min-h-0 ${chatOpen ? "mr-0" : ""}`}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
             {/* Local Video */}
             <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
@@ -659,7 +659,7 @@ export default function ZoomCallPage() {
 
           {/* Chat Sidebar */}
           {chatOpen && session?.user?.id && (
-            <div className="w-80 border-l border-gray-700 flex-shrink-0">
+            <div className="w-80 border-l border-gray-700 shrink-0 h-full overflow-hidden">
               <ChatSidebar
                 roomId={roomId as string}
                 userId={session.user.id}
