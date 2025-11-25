@@ -8,6 +8,7 @@ import (
 	"yourapp/internal/repository"
 	"yourapp/internal/service"
 	"yourapp/internal/util"
+	"yourapp/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -34,13 +35,14 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 	}
 
 	// Auto migrate
-	if err := db.AutoMigrate(&model.User{}, &model.Room{}, &model.RoomParticipant{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Room{}, &model.RoomParticipant{}, &model.ChatMessage{}); err != nil {
 		panic("Failed to migrate database: " + err.Error())
 	}
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	roomRepo := repository.NewRoomRepository(db)
+	chatRepo := repository.NewChatRepository(db)
 
 	// Initialize RabbitMQ with retry logic
 	rabbitMQ := initRabbitMQWithRetry(cfg)
@@ -66,10 +68,16 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 	// Initialize services
 	authService := service.NewAuthServiceWithConfig(userRepo, cfg.JWTSecret, rabbitMQ, cfg)
 	roomService := service.NewRoomService(roomRepo, userRepo, cfg)
+	chatService := service.NewChatService(chatRepo, roomRepo, userRepo)
+
+	// Initialize WebSocket hub
+	wsHub := websocket.NewHub()
+	go wsHub.Run()
 
 	// Initialize handlers
 	authHandler := NewAuthHandler(authService, cfg.JWTSecret)
 	roomHandler := NewRoomHandler(roomService)
+	chatHandler := NewChatHandler(chatService, wsHub, cfg.JWTSecret)
 
 	// API routes
 	api := r.Group("/api/v1")
@@ -105,6 +113,11 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 			rooms.POST("/:id/join", authHandler.AuthMiddleware(), roomHandler.JoinRoom)
 			rooms.POST("/:id/leave", authHandler.AuthMiddleware(), roomHandler.LeaveRoom)
 			rooms.DELETE("/:id", authHandler.AuthMiddleware(), roomHandler.DeleteRoom)
+
+			// Chat routes
+			rooms.GET("/:id/messages", chatHandler.GetMessages)
+			rooms.POST("/:id/messages", authHandler.AuthMiddleware(), chatHandler.CreateMessage)
+			rooms.GET("/:id/chat/ws", chatHandler.ServeWebSocket)
 		}
 	}
 

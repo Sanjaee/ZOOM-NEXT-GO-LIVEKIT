@@ -8,7 +8,8 @@ import Navbar from "@/components/general/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Users } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare } from "lucide-react";
+import ChatSidebar from "@/components/zoom/ChatSidebar";
 
 export default function ZoomCallPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function ZoomCallPage() {
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
   
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -564,14 +566,26 @@ export default function ZoomCallPage() {
             <h2 className="text-xl font-semibold text-white">Room: {roomId}</h2>
             <p className="text-gray-400 text-sm">Video Call</p>
           </div>
-          <div className="flex items-center gap-2 bg-gray-700 px-4 py-2 rounded-full">
-            <Users className="h-4 w-4 text-gray-300" />
-            <span className="text-white text-sm">{participantCount} peserta</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-gray-700 px-4 py-2 rounded-full">
+              <Users className="h-4 w-4 text-gray-300" />
+              <span className="text-white text-sm">{participantCount} peserta</span>
+            </div>
+            <Button
+              onClick={() => setChatOpen(!chatOpen)}
+              variant="ghost"
+              size="icon"
+              className="text-gray-300 hover:text-white hover:bg-gray-700"
+            >
+              <MessageSquare className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
-        {/* Video Grid */}
-        <div className="flex-1 p-6 overflow-auto">
+        {/* Main Content with Sidebar */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Video Grid */}
+          <div className={`flex-1 p-6 overflow-auto transition-all duration-300 ${chatOpen ? "mr-0" : ""}`}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
             {/* Local Video */}
             <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
@@ -609,7 +623,7 @@ export default function ZoomCallPage() {
               const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
               
               return (
-                <Card key={identity} className="relative aspect-video bg-gray-800 overflow-hidden">
+                <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
                   <div
                     ref={(el) => {
                       if (el) {
@@ -641,6 +655,18 @@ export default function ZoomCallPage() {
               );
             })}
           </div>
+          </div>
+
+          {/* Chat Sidebar */}
+          {chatOpen && session?.user?.id && (
+            <div className="w-80 border-l border-gray-700 flex-shrink-0">
+              <ChatSidebar
+                roomId={roomId as string}
+                userId={session.user.id}
+                isOpen={chatOpen}
+              />
+            </div>
+          )}
         </div>
 
         {/* Controls */}
