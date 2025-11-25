@@ -134,6 +134,7 @@ export default function ZoomCallPage() {
           newMap.delete(participant.identity);
           return newMap;
         });
+        // Status is checked directly from participant in render, no need to remove separately
         // Remove video element
         const videoEl = videoElementsRef.current.get(participant.identity);
         if (videoEl) {
@@ -155,6 +156,8 @@ export default function ZoomCallPage() {
           }
           return newMap;
         });
+
+        // Status is checked directly from participant in render, no need to store separately
       });
 
       // Local track published
@@ -163,12 +166,40 @@ export default function ZoomCallPage() {
         if (publication.kind === "video" && publication.track && localVideoRef.current) {
           publication.track.attach(localVideoRef.current);
         }
+        // Update state based on actual track state
+        if (publication.kind === "audio") {
+          setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
+        }
+        if (publication.kind === "video") {
+          setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
+        }
+      });
+
+      // Local track unpublished
+      newRoom.on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        console.log("Local track unpublished:", publication.kind);
+        // Update state based on actual LiveKit state
+        setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
+        setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
+        
+        // Detach video element when camera is unpublished
+        if (publication.kind === "video") {
+          if (publication.track && localVideoRef.current) {
+            publication.track.detach();
+          }
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+          }
+        }
       });
 
       // Track unsubscribed
       newRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
         track.detach();
+        // Status is checked directly from participant in render
       });
+
+      // Status is checked directly from participant in render, no need for event handlers
 
       // Connect to room
       console.log("[DEBUG] Connecting to LiveKit:", { url: data.url, hasToken: !!data.token });
@@ -198,14 +229,16 @@ export default function ZoomCallPage() {
       // Try to enable camera and microphone, but don't fail if permission denied
       try {
         await newRoom.localParticipant.enableCameraAndMicrophone();
-        setIsMicMuted(false);
-        setIsCameraOff(false);
+        // Update state based on actual LiveKit state
+        setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
+        setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
         console.log("[DEBUG] Camera and microphone enabled");
       } catch (err: any) {
         console.warn("[DEBUG] Could not enable camera/microphone:", err);
         // Don't show error toast, just continue without camera/mic
-        setIsMicMuted(true);
-        setIsCameraOff(true);
+        // Update state based on actual LiveKit state
+        setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
+        setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
         // User can manually enable later
       }
     } catch (err: any) {
@@ -238,6 +271,28 @@ export default function ZoomCallPage() {
       isJoiningRef.current = false;
     }
   }, [attachTrack, session, room, router]);
+
+  // Sync state with LiveKit participant state
+  useEffect(() => {
+    if (!room || room.state !== "connected") return;
+
+    // Initial sync
+    setIsMicMuted(!room.localParticipant.isMicrophoneEnabled);
+    setIsCameraOff(!room.localParticipant.isCameraEnabled);
+
+    // Set up interval to periodically sync state (fallback)
+    // This ensures UI stays in sync with actual LiveKit state
+    const syncInterval = setInterval(() => {
+      if (room && room.state === "connected") {
+        setIsMicMuted(() => !room.localParticipant.isMicrophoneEnabled);
+        setIsCameraOff(() => !room.localParticipant.isCameraEnabled);
+      }
+    }, 500); // Check every 500ms
+
+    return () => {
+      clearInterval(syncInterval);
+    };
+  }, [room]);
 
   useEffect(() => {
     console.log("[DEBUG] useEffect triggered, roomId:", roomId, "session status:", status);
@@ -299,21 +354,31 @@ export default function ZoomCallPage() {
 
   const toggleMic = async () => {
     if (!room || room.state !== "connected") return;
+    
     try {
-      // If microphone is not enabled yet, enable it first
-      if (!room.localParticipant.isMicrophoneEnabled && isMicMuted) {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        setIsMicMuted(false);
-      } else {
-        const newState = !isMicMuted; // true = unmute, false = mute
-        await room.localParticipant.setMicrophoneEnabled(newState);
-        setIsMicMuted(!newState); // Update state: if enabled (newState=true), then isMicMuted=false
-      }
+      // Get current state from LiveKit
+      const currentlyEnabled = room.localParticipant.isMicrophoneEnabled;
+      const newEnabledState = !currentlyEnabled;
+      
+      console.log("[DEBUG] Toggling mic:", { currentlyEnabled, newEnabledState });
+      
+      // Toggle microphone
+      await room.localParticipant.setMicrophoneEnabled(newEnabledState);
+      
+      // Update state based on actual LiveKit state after toggle
+      setIsMicMuted(!room.localParticipant.isMicrophoneEnabled);
+      
+      console.log("[DEBUG] Mic state after toggle:", room.localParticipant.isMicrophoneEnabled);
     } catch (err: any) {
       console.error("Error toggling microphone:", err);
+      
+      // Update state based on actual LiveKit state (might not have changed)
+      if (room) {
+        setIsMicMuted(!room.localParticipant.isMicrophoneEnabled);
+      }
+      
       // Don't show error if permission denied, just update state
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setIsMicMuted(true);
         toast({
           title: "Izin Diperlukan",
           description: "Izin mikrofon diperlukan untuk menggunakan fitur ini",
@@ -331,21 +396,42 @@ export default function ZoomCallPage() {
 
   const toggleCamera = async () => {
     if (!room || room.state !== "connected") return;
+    
     try {
-      // If camera is not enabled yet, enable it first
-      if (!room.localParticipant.isCameraEnabled && isCameraOff) {
-        await room.localParticipant.setCameraEnabled(true);
-        setIsCameraOff(false);
-      } else {
-        const newState = !isCameraOff; // true = camera on, false = camera off
-        await room.localParticipant.setCameraEnabled(newState);
-        setIsCameraOff(!newState); // Update state: if enabled (newState=true), then isCameraOff=false
+      // Get current state from LiveKit
+      const currentlyEnabled = room.localParticipant.isCameraEnabled;
+      const newEnabledState = !currentlyEnabled;
+      
+      console.log("[DEBUG] Toggling camera:", { currentlyEnabled, newEnabledState });
+      
+      // Toggle camera
+      await room.localParticipant.setCameraEnabled(newEnabledState);
+      
+      // Update state based on actual LiveKit state after toggle
+      setIsCameraOff(!room.localParticipant.isCameraEnabled);
+      
+      // Attach/detach video element
+      if (room.localParticipant.isCameraEnabled && localVideoRef.current) {
+        const videoPublication = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        if (videoPublication?.track) {
+          videoPublication.track.attach(localVideoRef.current);
+        }
+      } else if (localVideoRef.current) {
+        // Clear video element when camera is off
+        localVideoRef.current.srcObject = null;
       }
+      
+      console.log("[DEBUG] Camera state after toggle:", room.localParticipant.isCameraEnabled);
     } catch (err: any) {
       console.error("Error toggling camera:", err);
+      
+      // Update state based on actual LiveKit state (might not have changed)
+      if (room) {
+        setIsCameraOff(!room.localParticipant.isCameraEnabled);
+      }
+      
       // Don't show error if permission denied, just update state
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setIsCameraOff(true);
         toast({
           title: "Izin Diperlukan",
           description: "Izin kamera diperlukan untuk menggunakan fitur ini",
@@ -488,7 +574,7 @@ export default function ZoomCallPage() {
         <div className="flex-1 p-6 overflow-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
             {/* Local Video */}
-            <Card className="relative aspect-video bg-gray-800 overflow-hidden">
+            <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
               <video
                 ref={localVideoRef}
                 className="w-full h-full object-cover"
@@ -499,27 +585,61 @@ export default function ZoomCallPage() {
               <div className="absolute bottom-2 left-2 bg-black/70 text-white px-3 py-1 rounded text-sm">
                 Anda
               </div>
+              {/* Status Icons Overlay */}
+              <div className="absolute top-2 right-2 flex gap-2">
+                {isMicMuted && (
+                  <div className="bg-red-600/90 rounded-full p-1.5">
+                    <MicOff className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                {isCameraOff && (
+                  <div className="bg-red-600/90 rounded-full p-1.5">
+                    <VideoOff className="h-4 w-4 text-white" />
+                  </div>
+                )}
+              </div>
             </Card>
 
             {/* Remote Participants */}
-            {Array.from(participants.entries()).map(([identity]) => (
-              <Card key={identity} className="relative aspect-video bg-gray-800 overflow-hidden">
-                <div
-                  ref={(el) => {
-                    if (el) {
-                      const videoEl = videoElementsRef.current.get(identity);
-                      if (videoEl && !el.contains(videoEl)) {
-                        el.appendChild(videoEl);
+            {Array.from(participants.entries()).map(([identity, participant]) => {
+              // Check actual status from participant
+              const micPublication = participant.getTrackPublication(Track.Source.Microphone);
+              const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
+              const actualMicMuted = !micPublication?.isSubscribed || micPublication.isMuted;
+              const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
+              
+              return (
+                <Card key={identity} className="relative aspect-video bg-gray-800 overflow-hidden">
+                  <div
+                    ref={(el) => {
+                      if (el) {
+                        const videoEl = videoElementsRef.current.get(identity);
+                        if (videoEl && !el.contains(videoEl)) {
+                          el.appendChild(videoEl);
+                        }
                       }
-                    }
-                  }}
-                  className="w-full h-full"
-                />
-                <div className="absolute bottom-2 left-2 bg-black/70 text-white px-3 py-1 rounded text-sm">
-                  {identity}
-                </div>
-              </Card>
-            ))}
+                    }}
+                    className="w-full h-full"
+                  />
+                  <div className="absolute bottom-2 left-2 bg-black/70 text-white px-3 py-1 rounded text-sm">
+                    {identity}
+                  </div>
+                  {/* Status Icons Overlay */}
+                  <div className="absolute top-2 right-2 flex gap-2">
+                    {actualMicMuted && (
+                      <div className="bg-red-600/90 rounded-full p-1.5">
+                        <MicOff className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                    {actualCameraOff && (
+                      <div className="bg-red-600/90 rounded-full p-1.5">
+                        <VideoOff className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
