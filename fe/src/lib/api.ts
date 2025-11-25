@@ -245,6 +245,12 @@ class ApiClient {
     }
   }
 
+  async leaveRoom(roomId: string) {
+    return this.request(`/api/v1/rooms/${roomId}/leave`, {
+      method: "POST",
+    });
+  }
+
   async deleteRoom(roomId: string) {
     return this.request(`/api/v1/rooms/${roomId}`, {
       method: "DELETE",

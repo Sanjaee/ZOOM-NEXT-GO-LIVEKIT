@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"time"
 	"yourapp/internal/model"
 
 	"gorm.io/gorm"
@@ -93,10 +94,12 @@ func (r *roomRepository) AddParticipant(roomID, userID string) error {
 }
 
 func (r *roomRepository) RemoveParticipant(roomID, userID string) error {
+	now := time.Now()
 	return r.db.Model(&model.RoomParticipant{}).
 		Where("room_id = ? AND user_id = ?", roomID, userID).
 		Updates(map[string]interface{}{
 			"is_active": false,
+			"left_at":   &now,
 		}).Error
 }
 

@@ -300,9 +300,15 @@ export default function ZoomCallPage() {
   const toggleMic = async () => {
     if (!room || room.state !== "connected") return;
     try {
-      const newState = !isMicMuted; // true = unmute, false = mute
-      await room.localParticipant.setMicrophoneEnabled(newState);
-      setIsMicMuted(!newState); // Update state: if enabled (newState=true), then isMicMuted=false
+      // If microphone is not enabled yet, enable it first
+      if (!room.localParticipant.isMicrophoneEnabled && isMicMuted) {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        setIsMicMuted(false);
+      } else {
+        const newState = !isMicMuted; // true = unmute, false = mute
+        await room.localParticipant.setMicrophoneEnabled(newState);
+        setIsMicMuted(!newState); // Update state: if enabled (newState=true), then isMicMuted=false
+      }
     } catch (err: any) {
       console.error("Error toggling microphone:", err);
       // Don't show error if permission denied, just update state
@@ -326,9 +332,15 @@ export default function ZoomCallPage() {
   const toggleCamera = async () => {
     if (!room || room.state !== "connected") return;
     try {
-      const newState = !isCameraOff; // true = camera on, false = camera off
-      await room.localParticipant.setCameraEnabled(newState);
-      setIsCameraOff(!newState); // Update state: if enabled (newState=true), then isCameraOff=false
+      // If camera is not enabled yet, enable it first
+      if (!room.localParticipant.isCameraEnabled && isCameraOff) {
+        await room.localParticipant.setCameraEnabled(true);
+        setIsCameraOff(false);
+      } else {
+        const newState = !isCameraOff; // true = camera on, false = camera off
+        await room.localParticipant.setCameraEnabled(newState);
+        setIsCameraOff(!newState); // Update state: if enabled (newState=true), then isCameraOff=false
+      }
     } catch (err: any) {
       console.error("Error toggling camera:", err);
       // Don't show error if permission denied, just update state
@@ -350,15 +362,60 @@ export default function ZoomCallPage() {
   };
 
   const leaveRoom = async () => {
-    if (room) {
+    if (room && room.state === "connected") {
       try {
+        // Unpublish all tracks first
+        const publications = Array.from(room.localParticipant.trackPublications.values());
+        for (const publication of publications) {
+          try {
+            if (publication.track) {
+              await room.localParticipant.unpublishTrack(publication.track);
+            }
+          } catch (err) {
+            console.error("Error unpublishing track:", err);
+          }
+        }
+
+        // Detach all tracks
+        room.localParticipant.trackPublications.forEach((publication) => {
+          if (publication.track) {
+            publication.track.detach();
+          }
+        });
+
+        // Disconnect from room
         await room.disconnect();
       } catch (err) {
-        console.error("Error disconnecting:", err);
+        console.error("Error during disconnect:", err);
+      } finally {
+        setRoom(null);
+        hasJoinedRef.current = false;
+        isJoiningRef.current = false;
       }
     }
-    hasJoinedRef.current = false;
-    isJoiningRef.current = false;
+
+    // Call API to remove participant from room
+    if (roomId && typeof roomId === "string") {
+      try {
+        await api.leaveRoom(roomId);
+      } catch (err: any) {
+        console.error("Error leaving room via API:", err);
+        // Continue even if API call fails
+      }
+    }
+
+    // Clear participants
+    setParticipants(new Map());
+    videoElementsRef.current.clear();
+
+    // Reset state
+    setIsMicMuted(false);
+    setIsCameraOff(false);
+
+    // Small delay to ensure cleanup is complete
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Navigate back to zoom list
     router.push("/zoom");
   };
 

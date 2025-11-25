@@ -119,6 +119,29 @@ func (h *RoomHandler) JoinRoom(c *gin.Context) {
 	util.SuccessResponse(c, http.StatusOK, "Joined room successfully", response)
 }
 
+// LeaveRoom handles leaving a room
+// POST /api/v1/rooms/:id/leave
+func (h *RoomHandler) LeaveRoom(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		util.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	roomID := c.Param("id")
+	if roomID == "" {
+		util.BadRequest(c, "Room ID is required")
+		return
+	}
+
+	if err := h.roomService.LeaveRoom(roomID, userID.(string)); err != nil {
+		util.ErrorResponse(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	util.SuccessResponse(c, http.StatusOK, "Left room successfully", nil)
+}
+
 // DeleteRoom handles room deletion
 // DELETE /api/v1/rooms/:id
 func (h *RoomHandler) DeleteRoom(c *gin.Context) {

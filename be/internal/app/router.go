@@ -103,6 +103,7 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 			rooms.POST("", authHandler.AuthMiddleware(), roomHandler.CreateRoom)
 			rooms.GET("/my", authHandler.AuthMiddleware(), roomHandler.GetMyRooms)
 			rooms.POST("/:id/join", authHandler.AuthMiddleware(), roomHandler.JoinRoom)
+			rooms.POST("/:id/leave", authHandler.AuthMiddleware(), roomHandler.LeaveRoom)
 			rooms.DELETE("/:id", authHandler.AuthMiddleware(), roomHandler.DeleteRoom)
 		}
 	}

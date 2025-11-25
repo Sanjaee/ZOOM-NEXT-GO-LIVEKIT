@@ -17,6 +17,7 @@ type RoomService interface {
 	GetRoomsByUser(userID string) ([]RoomResponse, error)
 	GetAllRooms() ([]RoomResponse, error)
 	JoinRoom(roomID, userID string) (*JoinRoomResponse, error)
+	LeaveRoom(roomID, userID string) error
 	DeleteRoom(roomID, userID string) error
 }
 
@@ -41,20 +42,20 @@ type CreateRoomRequest struct {
 }
 
 type RoomResponse struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Description     *string   `json:"description,omitempty"`
-	CreatedByID     string    `json:"created_by_id"`
-	CreatedByName   string    `json:"created_by_name"`
-	IsActive        bool      `json:"is_active"`
-	MaxParticipants *int      `json:"max_participants,omitempty"`
-	ParticipantCount int64    `json:"participant_count"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Description      *string   `json:"description,omitempty"`
+	CreatedByID      string    `json:"created_by_id"`
+	CreatedByName    string    `json:"created_by_name"`
+	IsActive         bool      `json:"is_active"`
+	MaxParticipants  *int      `json:"max_participants,omitempty"`
+	ParticipantCount int64     `json:"participant_count"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type JoinRoomResponse struct {
-	Token string `json:"token"`
-	URL   string `json:"url"`
+	Token string       `json:"token"`
+	URL   string       `json:"url"`
 	Room  RoomResponse `json:"room"`
 }
 
@@ -159,7 +160,7 @@ func (s *roomService) JoinRoom(roomID, userID string) (*JoinRoomResponse, error)
 		RoomJoin: true,
 		Room:     roomID,
 	}
-	
+
 	// Use user email or ID as identity
 	identity := user.Email
 	if user.Username != nil && *user.Username != "" {
@@ -183,6 +184,21 @@ func (s *roomService) JoinRoom(roomID, userID string) (*JoinRoomResponse, error)
 		URL:   s.cfg.LiveKitURL,
 		Room:  *roomResponse,
 	}, nil
+}
+
+func (s *roomService) LeaveRoom(roomID, userID string) error {
+	// Verify room exists
+	_, err := s.roomRepo.FindByID(roomID)
+	if err != nil {
+		return errors.New("room not found")
+	}
+
+	// Remove participant from room
+	if err := s.roomRepo.RemoveParticipant(roomID, userID); err != nil {
+		return errors.New("failed to leave room")
+	}
+
+	return nil
 }
 
 func (s *roomService) DeleteRoom(roomID, userID string) error {
@@ -217,4 +233,3 @@ func (s *roomService) roomToResponse(room *model.Room) *RoomResponse {
 
 	return response
 }
-
