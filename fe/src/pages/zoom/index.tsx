@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import Navbar from "@/components/general/Navbar";
 import { toast } from "@/hooks/use-toast";
-import { Video, Plus, Users, Calendar } from "lucide-react";
+import { Video, Plus, Users, Calendar, Trash2 } from "lucide-react";
 
 export default function ZoomRoomsPage() {
   const router = useRouter();
@@ -164,6 +164,57 @@ export default function ZoomRoomsPage() {
     router.push(`/zoom/${roomId}`);
   };
 
+  const handleDeleteRoom = async (roomId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click event
+    
+    if (!confirm("Apakah Anda yakin ingin menghapus room ini?")) {
+      return;
+    }
+
+    try {
+      // Ensure token is set
+      let token: string | null = null;
+      
+      if (session?.accessToken) {
+        token = session.accessToken as string;
+        if (session.refreshToken) {
+          TokenManager.setTokens(token, session.refreshToken as string);
+        }
+      } else {
+        token = TokenManager.getAccessToken();
+      }
+      
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Anda harus login terlebih dahulu",
+          variant: "destructive",
+        });
+        router.push("/auth/login?callbackUrl=" + encodeURIComponent("/zoom"));
+        return;
+      }
+      
+      api.setAccessToken(token);
+      
+      await api.deleteRoom(roomId);
+      
+      toast({
+        title: "Success",
+        description: "Room berhasil dihapus",
+      });
+      
+      // Refresh rooms list
+      fetchRooms();
+    } catch (error: any) {
+      console.error("Error deleting room:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal menghapus room",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Navbar />
@@ -268,6 +319,16 @@ export default function ZoomRoomsPage() {
                       </p>
                     )}
                   </div>
+                  {session?.user?.id === room.created_by_id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={(e) => handleDeleteRoom(room.id, e)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">

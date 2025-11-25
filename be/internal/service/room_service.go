@@ -198,6 +198,22 @@ func (s *roomService) LeaveRoom(roomID, userID string) error {
 		return errors.New("failed to leave room")
 	}
 
+	// Check if room has no active participants left, then auto-delete
+	count, err := s.roomRepo.GetParticipantCount(roomID)
+	if err != nil {
+		// Continue even if count check fails
+		return nil
+	}
+
+	// Auto-delete room if no participants left
+	if count == 0 {
+		if err := s.roomRepo.Delete(roomID); err != nil {
+			// Log error but don't fail the leave operation
+			// The room will be cleaned up later
+			return nil
+		}
+	}
+
 	return nil
 }
 
