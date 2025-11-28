@@ -8,10 +8,16 @@ rtc:
 keys:
   devkey: 6RfzN3B2Lqj8vzdP9XC4tFkp57YhUBsM
 
-region: us
+region: id
 
 logging:
   level: info
 
-development: true
+room:
+  auto_create: true
+  empty_timeout: 300
+  max_participants: 50
+
+turn:
+  enabled: false
 

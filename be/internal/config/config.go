@@ -99,8 +99,8 @@ func Load() (*Config, error) {
 		SMTPUsername: getEnv("SMTP_USERNAME", ""),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
 
-		// LiveKit
-		LiveKitURL:       getEnv("LIVEKIT_URL", "ws://localhost:7880"),
+		// LiveKit - gunakan wss untuk production dengan nginx proxy
+		LiveKitURL:       getEnv("LIVEKIT_URL", "wss://zoom.zacloth.com/rtc"),
 		LiveKitAPIKey:    getEnv("LIVEKIT_API_KEY", "devkey"),
 		LiveKitAPISecret: getEnv("LIVEKIT_API_SECRET", "6RfzN3B2Lqj8vzdP9XC4tFkp57YhUBsM"),
 	}

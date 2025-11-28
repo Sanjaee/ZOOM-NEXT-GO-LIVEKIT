@@ -15,9 +15,9 @@ import type {
   GoogleOAuthRequest,
 } from "@/types/auth";
 
-// Use environment variable or default to localhost for browser
-// In Docker, NEXT_PUBLIC_API_URL should be set to http://localhost:5000 for browser access
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+// Use environment variable or relative URL for production
+// In production with nginx, API is on same domain under /api path
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 class ApiClient {
   private baseURL: string;
