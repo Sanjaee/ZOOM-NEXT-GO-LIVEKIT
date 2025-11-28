@@ -191,23 +191,6 @@ services:
       retries: 5
       start_period: 15s
 
-  # ===================
-  # PgWeb (Database UI) - Optional
-  # ===================
-  pgweb:
-    image: sosedoff/pgweb:latest
-    container_name: yourapp_pgweb
-    ports:
-      - "8081:8081"
-    environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-yourapp_db}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-yourapp}?sslmode=disable
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - yourapp_network
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   redis_data:
