@@ -8,7 +8,7 @@ import Navbar from "@/components/general/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare, X } from "lucide-react";
 import ChatSidebar from "@/components/zoom/ChatSidebar";
 
 export default function ZoomCallPage() {
@@ -21,12 +21,28 @@ export default function ZoomCallPage() {
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false); // Default closed on mobile
+  const [isMobile, setIsMobile] = useState(false);
   
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const isJoiningRef = useRef(false);
   const hasJoinedRef = useRef(false);
+
+  // Detect mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      // Auto open chat on desktop, close on mobile
+      if (window.innerWidth >= 768) {
+        setChatOpen(true);
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const attachTrack = useCallback((track: Track, participant: RemoteParticipant) => {
     if (track.kind === "video") {
@@ -561,105 +577,114 @@ export default function ZoomCallPage() {
       <Navbar />
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-gray-800 px-6 py-4 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Room: {roomId}</h2>
-            <p className="text-gray-400 text-sm">Video Call</p>
+        <div className="bg-gray-800 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-xl font-semibold text-white truncate">
+              <span className="hidden sm:inline">Room: </span>
+              {typeof roomId === "string" ? roomId.slice(0, 8) + "..." : roomId}
+            </h2>
+            <p className="text-gray-400 text-xs sm:text-sm">Video Call</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-gray-700 px-4 py-2 rounded-full">
-              <Users className="h-4 w-4 text-gray-300" />
-              <span className="text-white text-sm">{participantCount} peserta</span>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-gray-700 px-2 sm:px-4 py-1.5 sm:py-2 rounded-full">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-300" />
+              <span className="text-white text-xs sm:text-sm">{participantCount}</span>
             </div>
             <Button
               onClick={() => setChatOpen(!chatOpen)}
               variant="ghost"
               size="icon"
-              className="text-gray-300 hover:text-white hover:bg-gray-700"
+              className={`text-gray-300 hover:text-white hover:bg-gray-700 relative ${
+                chatOpen && !isMobile ? "bg-gray-700" : ""
+              }`}
             >
               <MessageSquare className="h-5 w-5" />
+              {/* Notification dot for mobile when chat is closed */}
+              {isMobile && !chatOpen && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
+              )}
             </Button>
           </div>
         </div>
 
         {/* Main Content with Sidebar */}
-        <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="flex-1 flex overflow-hidden min-h-0 relative">
           {/* Video Grid */}
-          <div className={`flex-1 p-6 overflow-auto transition-all duration-300 min-h-0 ${chatOpen ? "mr-0" : ""}`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
-            {/* Local Video */}
-            <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
-              <video
-                ref={localVideoRef}
-                className="w-full h-full object-cover"
-                autoPlay
-                playsInline
-                muted
-              />
-              <div className="absolute bottom-2 left-2 bg-black/70 text-white px-3 py-1 rounded text-sm">
-                Anda
-              </div>
-              {/* Status Icons Overlay */}
-              <div className="absolute top-2 right-2 flex gap-2">
-                {isMicMuted && (
-                  <div className="bg-red-600/90 rounded-full p-1.5">
-                    <MicOff className="h-4 w-4 text-white" />
-                  </div>
-                )}
-                {isCameraOff && (
-                  <div className="bg-red-600/90 rounded-full p-1.5">
-                    <VideoOff className="h-4 w-4 text-white" />
-                  </div>
-                )}
-              </div>
-            </Card>
+          <div className="flex-1 p-3 sm:p-6 overflow-auto transition-all duration-300 min-h-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 max-w-7xl mx-auto">
+              {/* Local Video */}
+              <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
+                <video
+                  ref={localVideoRef}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm">
+                  Anda
+                </div>
+                {/* Status Icons Overlay */}
+                <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex gap-1 sm:gap-2">
+                  {isMicMuted && (
+                    <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                      <MicOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                    </div>
+                  )}
+                  {isCameraOff && (
+                    <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                      <VideoOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                    </div>
+                  )}
+                </div>
+              </Card>
 
-            {/* Remote Participants */}
-            {Array.from(participants.entries()).map(([identity, participant]) => {
-              // Check actual status from participant
-              const micPublication = participant.getTrackPublication(Track.Source.Microphone);
-              const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
-              const actualMicMuted = !micPublication?.isSubscribed || micPublication.isMuted;
-              const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
-              
-              return (
-                <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden">
-                  <div
-                    ref={(el) => {
-                      if (el) {
-                        const videoEl = videoElementsRef.current.get(identity);
-                        if (videoEl && !el.contains(videoEl)) {
-                          el.appendChild(videoEl);
+              {/* Remote Participants */}
+              {Array.from(participants.entries()).map(([identity, participant]) => {
+                // Check actual status from participant
+                const micPublication = participant.getTrackPublication(Track.Source.Microphone);
+                const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
+                const actualMicMuted = !micPublication?.isSubscribed || micPublication.isMuted;
+                const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
+                
+                return (
+                  <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
+                    <div
+                      ref={(el) => {
+                        if (el) {
+                          const videoEl = videoElementsRef.current.get(identity);
+                          if (videoEl && !el.contains(videoEl)) {
+                            el.appendChild(videoEl);
+                          }
                         }
-                      }
-                    }}
-                    className="w-full h-full"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-black/70 text-white px-3 py-1 rounded text-sm">
-                    {identity}
-                  </div>
-                  {/* Status Icons Overlay */}
-                  <div className="absolute top-2 right-2 flex gap-2">
-                    {actualMicMuted && (
-                      <div className="bg-red-600/90 rounded-full p-1.5">
-                        <MicOff className="h-4 w-4 text-white" />
-                      </div>
-                    )}
-                    {actualCameraOff && (
-                      <div className="bg-red-600/90 rounded-full p-1.5">
-                        <VideoOff className="h-4 w-4 text-white" />
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      }}
+                      className="w-full h-full"
+                    />
+                    <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm truncate max-w-[80%]">
+                      {identity}
+                    </div>
+                    {/* Status Icons Overlay */}
+                    <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex gap-1 sm:gap-2">
+                      {actualMicMuted && (
+                        <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                          <MicOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                        </div>
+                      )}
+                      {actualCameraOff && (
+                        <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                          <VideoOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Chat Sidebar */}
-          {chatOpen && session?.user?.id && (
-            <div className="w-80 border-l border-gray-700 shrink-0 h-full overflow-hidden">
+          {/* Chat Sidebar - Desktop */}
+          {!isMobile && chatOpen && session?.user?.id && (
+            <div className="w-80 border-l border-gray-700 shrink-0 h-full overflow-hidden hidden md:block">
               <ChatSidebar
                 roomId={roomId as string}
                 userId={session.user.id}
@@ -667,46 +692,100 @@ export default function ZoomCallPage() {
               />
             </div>
           )}
+
+          {/* Chat Modal - Mobile */}
+          {isMobile && chatOpen && session?.user?.id && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black/60 z-40 md:hidden"
+                onClick={() => setChatOpen(false)}
+              />
+              
+              {/* Chat Panel */}
+              <div className="fixed inset-x-0 bottom-0 top-16 z-50 md:hidden animate-in slide-in-from-bottom duration-300">
+                <div className="h-full bg-gray-800 rounded-t-2xl flex flex-col overflow-hidden">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-gray-300" />
+                      <h3 className="text-lg font-semibold text-white">Chat</h3>
+                    </div>
+                    <Button
+                      onClick={() => setChatOpen(false)}
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-400 hover:text-white hover:bg-gray-700"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                  
+                  {/* Chat Content */}
+                  <div className="flex-1 overflow-hidden">
+                    <ChatSidebar
+                      roomId={roomId as string}
+                      userId={session.user.id}
+                      isOpen={chatOpen}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Controls */}
-        <div className="bg-gray-800 px-6 py-4 flex justify-center gap-4">
+        <div className="bg-gray-800 px-4 sm:px-6 py-3 sm:py-4 flex justify-center gap-3 sm:gap-4">
           <Button
             onClick={toggleMic}
             size="lg"
-            className={`rounded-full h-14 w-14 p-0 ${
+            className={`rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 ${
               isMicMuted
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-gray-700 hover:bg-gray-600"
             }`}
           >
             {isMicMuted ? (
-              <MicOff className="h-6 w-6" />
+              <MicOff className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <Mic className="h-6 w-6" />
+              <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </Button>
           <Button
             onClick={toggleCamera}
             size="lg"
-            className={`rounded-full h-14 w-14 p-0 ${
+            className={`rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 ${
               isCameraOff
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-gray-700 hover:bg-gray-600"
             }`}
           >
             {isCameraOff ? (
-              <VideoOff className="h-6 w-6" />
+              <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <Video className="h-6 w-6" />
+              <Video className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </Button>
           <Button
             onClick={leaveRoom}
             size="lg"
-            className="rounded-full h-14 w-14 p-0 bg-red-600 hover:bg-red-700"
+            className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 bg-red-600 hover:bg-red-700"
           >
-            <PhoneOff className="h-6 w-6" />
+            <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6" />
+          </Button>
+          
+          {/* Chat button in controls - Mobile only */}
+          <Button
+            onClick={() => setChatOpen(!chatOpen)}
+            size="lg"
+            className={`rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 md:hidden ${
+              chatOpen
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-700 hover:bg-gray-600"
+            }`}
+          >
+            <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
         </div>
       </div>

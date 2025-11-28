@@ -21,6 +21,7 @@ interface ChatSidebarProps {
   roomId: string;
   userId: string;
   isOpen: boolean;
+  hideHeader?: boolean; // Optional: hide header when used in modal
 }
 
 // Helper function to decode JWT token and get userId from database
@@ -43,7 +44,7 @@ function getUserIdFromToken(token: string | null): string | null {
   }
 }
 
-export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps) {
+export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false }: ChatSidebarProps) {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -68,7 +69,7 @@ export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps
         throw new Error("No access token");
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/rooms/${roomId}/messages`, {
+      const response = await fetch(`/api/v1/rooms/${roomId}/messages`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -101,8 +102,9 @@ export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps
       return;
     }
 
+    // Use current window location for WebSocket (works with nginx proxy)
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost = process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, "") || "localhost:5000";
+    const wsHost = window.location.host; // Use current domain (e.g., zoom.zacloth.com)
     const wsUrl = `${wsProtocol}//${wsHost}/api/v1/rooms/${roomId}/chat/ws?token=${encodeURIComponent(token)}`;
 
     console.log("[WS] Attempting to connect to:", wsUrl.replace(/token=[^&]*/, "token=***"));
@@ -182,7 +184,7 @@ export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps
     try {
       setSending(true);
       const token = api.getAccessToken();
-      const fetchResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/rooms/${roomId}/messages`, {
+      const fetchResponse = await fetch(`/api/v1/rooms/${roomId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -241,14 +243,16 @@ export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps
   if (!isOpen) return null;
 
   return (
-    <Card className="w-full h-[74vh] flex flex-col rounded-none p-0 bg-gray-800 border-0 shadow-none overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 p-4 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-gray-300" />
-          <h3 className="text-lg font-semibold text-white">Chat</h3>
+    <Card className="w-full h-full flex flex-col rounded-none p-0 bg-gray-800 border-0 shadow-none overflow-hidden">
+      {/* Header - Hidden on mobile modal */}
+      {!hideHeader && (
+        <div className="shrink-0 p-4 border-b border-gray-700 hidden md:block">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-gray-300" />
+            <h3 className="text-lg font-semibold text-white">Chat</h3>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Messages */}
       <div 
@@ -342,21 +346,21 @@ export default function ChatSidebar({ roomId, userId, isOpen }: ChatSidebarProps
       </div>
 
       {/* Input */}
-      <div className="shrink-0 p-4 border-t border-gray-700">
+      <div className="shrink-0 p-3 sm:p-4 border-t border-gray-700 pb-safe">
         <div className="flex gap-2">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ketik pesan..."
-            className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-400"
+            className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-400 text-base"
             disabled={sending}
           />
           <Button
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending}
             size="icon"
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-10 w-10"
           >
             <Send className="h-4 w-4" />
           </Button>
