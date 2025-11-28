@@ -8,7 +8,7 @@ import Navbar from "@/components/general/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare, X } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare, X, SwitchCamera } from "lucide-react";
 import ChatSidebar from "@/components/zoom/ChatSidebar";
 
 export default function ZoomCallPage() {
@@ -23,6 +23,8 @@ export default function ZoomCallPage() {
   const [error, setError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false); // Default closed on mobile
   const [isMobile, setIsMobile] = useState(false);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user"); // Front/back camera
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -465,6 +467,135 @@ export default function ZoomCallPage() {
     }
   };
 
+  // Switch between front and back camera
+  const switchCamera = async () => {
+    if (!room || room.state !== "connected" || isSwitchingCamera) return;
+    
+    // Only allow switching if camera is currently enabled
+    if (!room.localParticipant.isCameraEnabled) {
+      toast({
+        title: "Kamera Mati",
+        description: "Nyalakan kamera terlebih dahulu untuk switch",
+        variant: "default",
+      });
+      return;
+    }
+
+    try {
+      setIsSwitchingCamera(true);
+      
+      // Determine new facing mode
+      const newFacingMode = facingMode === "user" ? "environment" : "user";
+      
+      console.log("[DEBUG] Switching camera from", facingMode, "to", newFacingMode);
+      
+      // Get the current video track
+      const currentVideoPublication = room.localParticipant.getTrackPublication(Track.Source.Camera);
+      
+      // Stop and unpublish current video track
+      if (currentVideoPublication?.track) {
+        currentVideoPublication.track.detach();
+        await room.localParticipant.unpublishTrack(currentVideoPublication.track);
+      }
+      
+      // Create new video track with different facing mode
+      const videoTrack = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { exact: newFacingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      
+      // Publish new track
+      const newTrack = videoTrack.getVideoTracks()[0];
+      await room.localParticipant.publishTrack(newTrack, {
+        name: "camera",
+        source: Track.Source.Camera,
+      });
+      
+      // Attach to local video element
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = videoTrack;
+      }
+      
+      // Update state
+      setFacingMode(newFacingMode);
+      setIsCameraOff(false);
+      
+      console.log("[DEBUG] Camera switched to", newFacingMode);
+      
+      toast({
+        title: "Kamera Diubah",
+        description: newFacingMode === "user" ? "Kamera depan aktif" : "Kamera belakang aktif",
+      });
+    } catch (err: any) {
+      console.error("Error switching camera:", err);
+      
+      // If exact facingMode fails, try without exact constraint
+      if (err.name === "OverconstrainedError") {
+        try {
+          const newFacingMode = facingMode === "user" ? "environment" : "user";
+          
+          const videoTrack = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: newFacingMode, // Without 'exact'
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+          
+          const newTrack = videoTrack.getVideoTracks()[0];
+          await room.localParticipant.publishTrack(newTrack, {
+            name: "camera",
+            source: Track.Source.Camera,
+          });
+          
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = videoTrack;
+          }
+          
+          setFacingMode(newFacingMode);
+          setIsCameraOff(false);
+          
+          toast({
+            title: "Kamera Diubah",
+            description: newFacingMode === "user" ? "Kamera depan aktif" : "Kamera belakang aktif",
+          });
+        } catch (fallbackErr: any) {
+          console.error("Fallback camera switch failed:", fallbackErr);
+          toast({
+            title: "Tidak Dapat Mengganti Kamera",
+            description: "Perangkat tidak mendukung switch kamera",
+            variant: "destructive",
+          });
+          
+          // Re-enable the original camera
+          try {
+            await room.localParticipant.setCameraEnabled(true);
+          } catch (e) {
+            console.error("Failed to re-enable camera:", e);
+          }
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Gagal mengganti kamera",
+          variant: "destructive",
+        });
+        
+        // Re-enable the original camera
+        try {
+          await room.localParticipant.setCameraEnabled(true);
+        } catch (e) {
+          console.error("Failed to re-enable camera:", e);
+        }
+      }
+    } finally {
+      setIsSwitchingCamera(false);
+    }
+  };
+
   const leaveRoom = async () => {
     if (room && room.state === "connected") {
       try {
@@ -616,13 +747,21 @@ export default function ZoomCallPage() {
               <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
                 <video
                   ref={localVideoRef}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${facingMode === "user" ? "" : "scale-x-100"}`}
                   autoPlay
                   playsInline
                   muted
                 />
-                <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm">
-                  Anda
+                <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 flex items-center gap-1.5">
+                  <span className="bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm">
+                    Anda
+                  </span>
+                  {/* Camera mode indicator */}
+                  {!isCameraOff && (
+                    <span className="bg-blue-600/80 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs">
+                      {facingMode === "user" ? "Depan" : "Belakang"}
+                    </span>
+                  )}
                 </div>
                 {/* Status Icons Overlay */}
                 <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex gap-1 sm:gap-2">
@@ -766,6 +905,21 @@ export default function ZoomCallPage() {
             ) : (
               <Video className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
+          </Button>
+          
+          {/* Switch Camera Button */}
+          <Button
+            onClick={switchCamera}
+            size="lg"
+            disabled={isCameraOff || isSwitchingCamera}
+            className={`rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 ${
+              isCameraOff || isSwitchingCamera
+                ? "bg-gray-600 opacity-50 cursor-not-allowed"
+                : "bg-gray-700 hover:bg-gray-600"
+            }`}
+            title={facingMode === "user" ? "Switch ke kamera belakang" : "Switch ke kamera depan"}
+          >
+            <SwitchCamera className={`h-5 w-5 sm:h-6 sm:w-6 ${isSwitchingCamera ? "animate-spin" : ""}`} />
           </Button>
           <Button
             onClick={leaveRoom}

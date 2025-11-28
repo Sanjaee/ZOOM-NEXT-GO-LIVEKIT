@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Space_Grotesk, Outfit } from "next/font/google";
+import Navbar from "@/components/general/Navbar";
+
+// Generate particles outside component (runs once at module load)
+const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  left: (i * 17 + 13) % 100, // Deterministic spread
+  top: (i * 23 + 7) % 100,
+  duration: 3 + (i % 5),
+  delay: (i % 3) * 0.7,
+}));
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space",
@@ -14,11 +24,9 @@ const outfit = Outfit({
 
 export default function Home() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    setMounted(true);
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
     };
@@ -30,12 +38,13 @@ export default function Home() {
     router.push("/zoom");
   };
 
-  if (!mounted) return null;
-
   return (
     <div
       className={`${spaceGrotesk.variable} ${outfit.variable} relative min-h-screen overflow-hidden bg-[#0a0a0f] font-sans`}
     >
+      {/* Navbar */}
+      <Navbar />
+
       {/* Animated gradient background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Primary gradient orbs */}
@@ -76,54 +85,26 @@ export default function Home() {
         />
 
         {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
+        {PARTICLES.map((particle) => (
           <div
-            key={i}
+            key={particle.id}
             className="absolute w-1 h-1 bg-white rounded-full opacity-20"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animation: `twinkle ${3 + Math.random() * 4}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 2}s`,
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
+              animation: `twinkle ${particle.duration}s ease-in-out infinite`,
+              animationDelay: `${particle.delay}s`,
             }}
           />
         ))}
       </div>
 
       {/* Main content */}
-      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
-        {/* Logo/Brand */}
-        <div
-          className="mb-8 flex items-center gap-3 opacity-0 animate-fadeInUp"
-          style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}
-        >
-          <div className="relative">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/25">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-30 blur-lg" />
-          </div>
-          <span className="text-2xl font-bold text-white tracking-tight font-[family-name:var(--font-space)]">
-            BeRealTime
-          </span>
-        </div>
-
+      <main className="relative z-10 flex min-h-[calc(100vh-64px)] flex-col items-center justify-center px-6 -mt-16">
         {/* Main heading */}
         <h1
           className="text-center text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight mb-6 opacity-0 animate-fadeInUp font-[family-name:var(--font-outfit)]"
-          style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}
+          style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}
         >
           <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
             Connect
@@ -137,7 +118,7 @@ export default function Home() {
         {/* Subtitle */}
         <p
           className="text-center text-lg sm:text-xl text-gray-400 max-w-md mb-12 leading-relaxed opacity-0 animate-fadeInUp font-[family-name:var(--font-outfit)]"
-          style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}
+          style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}
         >
           Experience next-generation video conferencing with crystal-clear
           quality and seamless collaboration.
@@ -146,7 +127,7 @@ export default function Home() {
         {/* CTA Button */}
         <div
           className="opacity-0 animate-fadeInUp"
-          style={{ animationDelay: "0.4s", animationFillMode: "forwards" }}
+          style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}
         >
           <button
             onClick={handleEnter}
@@ -181,7 +162,7 @@ export default function Home() {
         {/* Features */}
         <div
           className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl opacity-0 animate-fadeInUp"
-          style={{ animationDelay: "0.5s", animationFillMode: "forwards" }}
+          style={{ animationDelay: "0.4s", animationFillMode: "forwards" }}
         >
           {[
             {
