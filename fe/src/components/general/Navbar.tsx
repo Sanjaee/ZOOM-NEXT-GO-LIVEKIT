@@ -59,7 +59,7 @@ export default function Navbar() {
           </div>
           {/* Brand Name */}
           <span className="text-lg font-bold text-white tracking-tight hidden sm:block">
-            BeRealTime
+            Zacode
           </span>
         </button>
 
