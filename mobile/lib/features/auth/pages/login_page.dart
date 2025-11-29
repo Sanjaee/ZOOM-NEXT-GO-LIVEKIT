@@ -51,10 +51,12 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (response.accessToken != null && response.refreshToken != null) {
-        // Store tokens
-        await _authStorage.saveTokens(
+        // Store complete session (tokens + user + expiry)
+        await _authStorage.saveSession(
           accessToken: response.accessToken!,
           refreshToken: response.refreshToken!,
+          user: response.user,
+          expiresIn: response.expiresIn,
         );
         
         // Update API service with access token

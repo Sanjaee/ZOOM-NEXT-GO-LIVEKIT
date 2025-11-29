@@ -8,5 +8,9 @@ class AppRoutes {
   static const String verifyEmail = '/verify-email';
   static const String home = '/home';
   static const String profile = '/profile';
+  
+  // Zoom routes
+  static const String rooms = '/rooms';
+  static const String videoCall = '/video-call';
 }
 

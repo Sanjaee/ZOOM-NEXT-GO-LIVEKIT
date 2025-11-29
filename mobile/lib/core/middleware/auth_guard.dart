@@ -7,7 +7,10 @@ class AuthGuard {
 
   // Check if route requires authentication
   static bool requiresAuth(String routeName) {
-    return routeName == AppRoutes.home || routeName == AppRoutes.profile;
+    return routeName == AppRoutes.home || 
+           routeName == AppRoutes.profile ||
+           routeName == AppRoutes.rooms ||
+           routeName == AppRoutes.videoCall;
   }
 
   // Check if route is auth page (login, register, etc)

@@ -26,22 +26,24 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    // TODO: Load user data from storage or API
-    // For now, using mock data
-    setState(() {
-      _user = User(
-        id: '1',
-        email: 'user@example.com',
-        fullName: 'John Doe',
-        username: 'johndoe',
-        userType: 'member',
-        isActive: true,
-        isVerified: true,
-        loginType: 'credential',
-        createdAt: DateTime.now().toIso8601String(),
-      );
-      _isLoading = false;
-    });
+    try {
+      final authStorage = AuthStorageService();
+      final user = await authStorage.getUser();
+      
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Profile] Error loading user data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -67,9 +69,9 @@ class _ProfilePageState extends State<ProfilePage> {
       // Clear access token from API service first
       ApiServiceFactory.getInstance().setAccessToken(null);
       
-      // Clear tokens from storage
+      // Clear all session data from storage
       final authStorage = AuthStorageService();
-      await authStorage.clearTokens();
+      await authStorage.clearAll();
       
       // Wait a bit to ensure tokens are cleared
       await Future.delayed(const Duration(milliseconds: 100));
@@ -118,15 +120,28 @@ class _ProfilePageState extends State<ProfilePage> {
                     Center(
                       child: Column(
                         children: [
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
-                            child: Icon(
-                              Icons.person,
-                              size: 50,
-                              color: AppColors.primary,
-                            ),
-                          ),
+                          // Profile Photo - show network image if available
+                          _user?.profilePhoto != null && _user!.profilePhoto!.isNotEmpty
+                              ? CircleAvatar(
+                                  radius: 50,
+                                  backgroundImage: NetworkImage(_user!.profilePhoto!),
+                                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                                  onBackgroundImageError: (_, __) {},
+                                )
+                              : CircleAvatar(
+                                  radius: 50,
+                                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                                  child: Text(
+                                    (_user?.fullName.isNotEmpty == true 
+                                        ? _user!.fullName[0] 
+                                        : '?').toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
                           const SizedBox(height: 16),
                           Text(
                             _user?.fullName ?? 'N/A',
@@ -141,6 +156,44 @@ class _ProfilePageState extends State<ProfilePage> {
                               color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
                             ),
                           ),
+                          // Show login type badge
+                          if (_user?.loginType != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _user?.loginType == 'google' 
+                                    ? Colors.blue.withOpacity(0.1) 
+                                    : AppColors.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _user?.loginType == 'google' 
+                                        ? Icons.g_mobiledata 
+                                        : Icons.email_outlined,
+                                    size: 16,
+                                    color: _user?.loginType == 'google' 
+                                        ? Colors.blue 
+                                        : AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _user?.loginType == 'google' ? 'Google' : 'Email',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _user?.loginType == 'google' 
+                                          ? Colors.blue 
+                                          : AppColors.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -186,6 +239,13 @@ class _ProfilePageState extends State<ProfilePage> {
                             _user?.isVerified == true ? 'Terverifikasi' : 'Belum Terverifikasi',
                             _user?.isVerified == true ? Icons.verified : Icons.verified_user_outlined,
                             color: _user?.isVerified == true ? AppColors.success : AppColors.warning,
+                          ),
+                          const Divider(height: 32),
+                          _buildDetailItem(
+                            context,
+                            'Login Via',
+                            _user?.loginType == 'google' ? 'Google Account' : 'Email & Password',
+                            _user?.loginType == 'google' ? Icons.g_mobiledata : Icons.lock_outline,
                           ),
                         ],
                       ),

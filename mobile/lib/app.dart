@@ -9,6 +9,8 @@ import 'features/auth/pages/verify_otp_reset_page.dart';
 import 'features/auth/pages/verify_reset_password_page.dart';
 import 'features/home/pages/home_page.dart';
 import 'features/profile/pages/profile_page.dart';
+import 'features/zoom/pages/rooms_page.dart';
+import 'features/zoom/pages/video_call_page.dart';
 import 'routes/app_routes.dart';
 
 class MyApp extends StatelessWidget {
@@ -71,6 +73,14 @@ class MyApp extends StatelessWidget {
           return const HomePage();
         case AppRoutes.profile:
           return const ProfilePage();
+        case AppRoutes.rooms:
+          return const RoomsPage();
+        case AppRoutes.videoCall:
+          final args = settings.arguments as Map<String, dynamic>?;
+          return VideoCallPage(
+            roomId: args?['roomId'] ?? '',
+            roomName: args?['roomName'] ?? 'Room',
+          );
         default:
           return const Scaffold(
             body: Center(

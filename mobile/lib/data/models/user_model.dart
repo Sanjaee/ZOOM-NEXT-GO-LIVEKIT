@@ -13,6 +13,7 @@ class User {
   final String? lastLogin;
   final String loginType;
   final String createdAt;
+  final String? role;
 
   User({
     required this.id,
@@ -29,24 +30,33 @@ class User {
     this.lastLogin,
     required this.loginType,
     required this.createdAt,
+    this.role,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] ?? '',
+      id: json['id']?.toString() ?? '',
       email: json['email'] ?? '',
-      username: json['username'],
+      // Support both 'username' and fallback to 'name'
+      username: json['username'] ?? json['name'],
       phone: json['phone'],
-      fullName: json['full_name'] ?? '',
-      userType: json['user_type'] ?? 'member',
-      profilePhoto: json['profile_photo'],
-      dateOfBirth: json['date_of_birth'],
+      // Support both 'full_name' (snake_case) and 'name' (camelCase from Google OAuth)
+      fullName: json['full_name'] ?? json['fullName'] ?? json['name'] ?? '',
+      // Support both 'user_type' and 'userType'
+      userType: json['user_type'] ?? json['userType'] ?? json['role'] ?? 'member',
+      // Support both 'profile_photo' and 'image' (from Google OAuth)
+      profilePhoto: json['profile_photo'] ?? json['profilePhoto'] ?? json['image'],
+      dateOfBirth: json['date_of_birth'] ?? json['dateOfBirth'],
       gender: json['gender'],
-      isActive: json['is_active'] ?? true,
-      isVerified: json['is_verified'] ?? false,
-      lastLogin: json['last_login'],
-      loginType: json['login_type'] ?? 'credential',
-      createdAt: json['created_at'] ?? '',
+      // Support both 'is_active' and 'isActive'
+      isActive: json['is_active'] ?? json['isActive'] ?? true,
+      // Support both 'is_verified' and 'isVerified'
+      isVerified: json['is_verified'] ?? json['isVerified'] ?? false,
+      lastLogin: json['last_login'] ?? json['lastLogin'],
+      // Support both 'login_type' and 'loginType'
+      loginType: json['login_type'] ?? json['loginType'] ?? 'credential',
+      createdAt: json['created_at'] ?? json['createdAt'] ?? DateTime.now().toIso8601String(),
+      role: json['role'],
     );
   }
 
@@ -66,6 +76,7 @@ class User {
       'last_login': lastLogin,
       'login_type': loginType,
       'created_at': createdAt,
+      'role': role,
     };
   }
 }
