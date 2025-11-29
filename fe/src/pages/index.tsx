@@ -25,6 +25,20 @@ const outfit = Outfit({
 export default function Home() {
   const router = useRouter();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+
+  useEffect(() => {
+    // Trigger animation on mount/remount
+    const timer = setTimeout(() => {
+      setMounted(true);
+      setAnimationKey((prev) => prev + 1);
+    }, 10);
+    return () => {
+      clearTimeout(timer);
+      setMounted(false);
+    };
+  }, [router.pathname]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -103,7 +117,8 @@ export default function Home() {
       <main className="relative z-10 flex min-h-[calc(100vh-64px)] flex-col items-center justify-center px-6 -mt-16">
         {/* Main heading */}
         <h1
-          className="text-center text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight mb-6 opacity-0 animate-fadeInUp font-[family-name:var(--font-outfit)]"
+          key={`heading-${animationKey}`}
+          className={`text-center text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight mb-6 font-[family-name:var(--font-outfit)] ${mounted ? "animate-fadeInUp" : "opacity-0"}`}
           style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}
         >
           <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
@@ -117,7 +132,8 @@ export default function Home() {
 
         {/* Subtitle */}
         <p
-          className="text-center text-lg sm:text-xl text-gray-400 max-w-md mb-12 leading-relaxed opacity-0 animate-fadeInUp font-[family-name:var(--font-outfit)]"
+          key={`subtitle-${animationKey}`}
+          className={`text-center text-lg sm:text-xl text-gray-400 max-w-md mb-12 leading-relaxed font-[family-name:var(--font-outfit)] ${mounted ? "animate-fadeInUp" : "opacity-0"}`}
           style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}
         >
           Experience next-generation video conferencing with crystal-clear
@@ -126,7 +142,8 @@ export default function Home() {
 
         {/* CTA Button */}
         <div
-          className="opacity-0 animate-fadeInUp"
+          key={`button-${animationKey}`}
+          className={mounted ? "animate-fadeInUp" : "opacity-0"}
           style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}
         >
           <button
@@ -161,7 +178,8 @@ export default function Home() {
 
         {/* Features */}
         <div
-          className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl opacity-0 animate-fadeInUp"
+          key={`features-${animationKey}`}
+          className={`mt-20 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl ${mounted ? "animate-fadeInUp" : "opacity-0"}`}
           style={{ animationDelay: "0.4s", animationFillMode: "forwards" }}
         >
           {[
@@ -243,7 +261,7 @@ export default function Home() {
           }
         }
         .animate-fadeInUp {
-          animation: fadeInUp 0.8s ease-out;
+          animation: fadeInUp 0.8s ease-out forwards !important;
         }
       `}</style>
     </div>
