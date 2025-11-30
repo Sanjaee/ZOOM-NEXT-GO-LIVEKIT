@@ -69,7 +69,11 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
         throw new Error("No access token");
       }
 
-      const response = await fetch(`/api/v1/rooms/${roomId}/messages`, {
+      // Use API_BASE_URL from environment or fallback to current host
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+      const apiUrl = API_BASE_URL || window.location.origin;
+      
+      const response = await fetch(`${apiUrl}/api/v1/rooms/${roomId}/messages`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -102,10 +106,21 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
       return;
     }
 
-    // Use current window location for WebSocket (works with nginx proxy)
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsHost = window.location.host; // Use current domain (e.g., zoom.zacloth.com)
-    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/rooms/${roomId}/chat/ws?token=${encodeURIComponent(token)}`;
+    // Use API_BASE_URL for WebSocket (works with both development and production)
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+    let wsUrl: string;
+    
+    if (API_BASE_URL) {
+      // Use API_BASE_URL if available (development: http://localhost:5000)
+      const apiUrl = new URL(API_BASE_URL);
+      const wsProtocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${wsProtocol}//${apiUrl.host}/api/v1/rooms/${roomId}/chat/ws?token=${encodeURIComponent(token)}`;
+    } else {
+      // Fallback to current window location (production with nginx proxy)
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsHost = window.location.host;
+      wsUrl = `${wsProtocol}//${wsHost}/api/v1/rooms/${roomId}/chat/ws?token=${encodeURIComponent(token)}`;
+    }
 
     console.log("[WS] Attempting to connect to:", wsUrl.replace(/token=[^&]*/, "token=***"));
 
@@ -184,7 +199,12 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
     try {
       setSending(true);
       const token = api.getAccessToken();
-      const fetchResponse = await fetch(`/api/v1/rooms/${roomId}/messages`, {
+      
+      // Use API_BASE_URL from environment or fallback to current host
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+      const apiUrl = API_BASE_URL || window.location.origin;
+      
+      const fetchResponse = await fetch(`${apiUrl}/api/v1/rooms/${roomId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -243,7 +263,7 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
   if (!isOpen) return null;
 
   return (
-    <Card className="w-full h-full flex flex-col rounded-none p-0 bg-gray-800 border-0 shadow-none overflow-hidden">
+    <Card className="w-full h-[73vh] flex flex-col rounded-none p-0 bg-gray-800 border-0 shadow-none overflow-hidden">
       {/* Header - Hidden on mobile modal */}
       {!hideHeader && (
         <div className="shrink-0 p-4 border-b border-gray-700 hidden md:block">
@@ -254,7 +274,7 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages - Flex-1 untuk mengambil sisa space, overflow-y-auto untuk scroll internal */}
       <div 
         className="flex-1 overflow-y-auto p-4 min-h-0 chat-scrollbar" 
         ref={messagesContainerRef}

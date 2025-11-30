@@ -899,6 +899,22 @@ export default function ZoomCallPage() {
 
   const participantCount = participants.size + 1; // +1 for local participant
 
+  // Check if there's any active screen share (local or remote)
+  const hasActiveScreenShare = isScreenSharing || Array.from(participants.values()).some(
+    (participant) => {
+      const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
+      return screenSharePublication?.isSubscribed && screenSharePublication.track;
+    }
+  );
+
+  // Get active screen share participant (prioritize remote, then local)
+  const activeScreenShareParticipant = Array.from(participants.values()).find(
+    (participant) => {
+      const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
+      return screenSharePublication?.isSubscribed && screenSharePublication.track;
+    }
+  ) || (isScreenSharing ? room?.localParticipant : null);
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Navbar />
@@ -935,30 +951,94 @@ export default function ZoomCallPage() {
         </div>
 
         {/* Main Content with Sidebar */}
-        <div className="flex-1 flex overflow-hidden min-h-0 relative">
-          {/* Video Grid */}
-          <div className="flex-1 p-3 sm:p-6 overflow-auto transition-all duration-300 min-h-0">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 max-w-7xl mx-auto">
-              {/* Local Screen Share (if sharing) */}
-              {isScreenSharing && (
-                <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-2 border-blue-500">
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Screen Share Full Screen Layout */}
+          {hasActiveScreenShare ? (
+            <div className="flex-1 relative bg-gray-900 overflow-hidden">
+              {/* Full Screen Screen Share */}
+              {activeScreenShareParticipant && (
+                <div className="absolute inset-0 w-full h-full">
+                  {activeScreenShareParticipant === room?.localParticipant ? (
+                    // Local screen share
+                    <video
+                      ref={localScreenShareRef}
+                      className="w-full h-full object-contain"
+                      autoPlay
+                      playsInline
+                      muted
+                    />
+                  ) : (
+                    // Remote screen share
+                    <div
+                      ref={(el) => {
+                        if (el && activeScreenShareParticipant) {
+                          const screenShareEl = screenShareElementsRef.current.get(activeScreenShareParticipant.identity);
+                          if (screenShareEl && !el.contains(screenShareEl)) {
+                            el.appendChild(screenShareEl);
+                          }
+                        }
+                      }}
+                      className="w-full h-full"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Camera Video - Bottom Right Corner (Absolute) */}
+              <div className="absolute bottom-4 right-4 w-64 h-48 sm:w-80 sm:h-60 rounded-lg overflow-hidden shadow-2xl border-2 border-gray-700 bg-gray-800 z-10">
+                {!isCameraOff ? (
                   <video
-                    ref={localScreenShareRef}
-                    className="w-full h-full object-contain"
+                    ref={localVideoRef}
+                    className={`w-full h-full object-cover ${facingMode === "user" ? "" : "scale-x-100"}`}
                     autoPlay
                     playsInline
                     muted
                   />
-                  <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 flex items-center gap-1.5">
-                    <span className="bg-blue-600/90 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm">
-                      Layar Anda
-                    </span>
+                ) : (
+                  <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                    <VideoOff className="h-12 w-12 text-gray-600" />
                   </div>
-                </Card>
-              )}
-              
-              {/* Local Video */}
-              <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
+                )}
+                <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                  <span className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                    Anda
+                  </span>
+                  {!isCameraOff && (
+                    <span className="bg-blue-600/80 text-white px-2 py-1 rounded text-xs">
+                      {facingMode === "user" ? "Depan" : "Belakang"}
+                    </span>
+                  )}
+                </div>
+                {/* Status Icons Overlay */}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  {isMicMuted && (
+                    <div className="bg-red-600/90 rounded-full p-1">
+                      <MicOff className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  {isCameraOff && (
+                    <div className="bg-red-600/90 rounded-full p-1">
+                      <VideoOff className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Screen Share Label */}
+              <div className="absolute top-4 left-4 z-10">
+                <span className="bg-blue-600/90 text-white px-3 py-1.5 rounded text-sm font-medium">
+                  {activeScreenShareParticipant === room?.localParticipant 
+                    ? "Layar Anda" 
+                    : `${activeScreenShareParticipant?.identity || "Layar"} - Screen Share`}
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* Normal Grid Layout (No Screen Share) */
+            <div className="flex-1 p-3 sm:p-6 h-[70vh]  transition-all duration-300 ">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 max-w-7xl mx-auto">
+                {/* Local Video */}
+                <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
                 <video
                   ref={localVideoRef}
                   className={`w-full h-full object-cover ${facingMode === "user" ? "" : "scale-x-100"}`}
@@ -997,37 +1077,11 @@ export default function ZoomCallPage() {
                 // Check actual status from participant
                 const micPublication = participant.getTrackPublication(Track.Source.Microphone);
                 const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
-                const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
                 const actualMicMuted = !micPublication?.isSubscribed || micPublication.isMuted;
                 const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
-                const hasScreenShare = screenSharePublication?.isSubscribed && screenSharePublication.track;
                 
                 return (
-                  <>
-                    {/* Remote Screen Share (if sharing) */}
-                    {hasScreenShare && (
-                      <Card key={`${identity}-screenshare`} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-2 border-blue-500">
-                        <div
-                          ref={(el) => {
-                            if (el) {
-                              const screenShareEl = screenShareElementsRef.current.get(identity);
-                              if (screenShareEl && !el.contains(screenShareEl)) {
-                                el.appendChild(screenShareEl);
-                              }
-                            }
-                          }}
-                          className="w-full h-full"
-                        />
-                        <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 flex items-center gap-1.5">
-                          <span className="bg-blue-600/90 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm truncate max-w-[80%]">
-                            {identity} - Layar
-                          </span>
-                        </div>
-                      </Card>
-                    )}
-                    
-                    {/* Remote Camera */}
-                    <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
+                  <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
                       <div
                         ref={(el) => {
                           if (el) {
@@ -1056,15 +1110,15 @@ export default function ZoomCallPage() {
                         )}
                       </div>
                     </Card>
-                  </>
                 );
               })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Chat Sidebar - Desktop */}
           {!isMobile && chatOpen && session?.user?.id && (
-            <div className="w-80 border-l border-gray-700 shrink-0 h-full overflow-hidden hidden md:block">
+            <div className="w-80 border-l border-gray-700 shrink-0 h-full overflow-hidden hidden md:flex md:flex-col min-h-0">
               <ChatSidebar
                 roomId={roomId as string}
                 userId={session.user.id}
