@@ -7,6 +7,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
     }),
     CredentialsProvider({
       id: "credentials",
@@ -131,9 +138,20 @@ export const authOptions: NextAuthOptions = {
       // Handle Google OAuth
       if (account?.provider === "google") {
         try {
+          // Validate required fields
+          if (!user.email) {
+            console.error("Google OAuth: Missing email");
+            throw new Error("Email tidak ditemukan dari akun Google");
+          }
+
+          if (!account.providerAccountId) {
+            console.error("Google OAuth: Missing providerAccountId");
+            throw new Error("ID Google tidak ditemukan");
+          }
+
           const authResponse = await api.googleOAuth({
-            email: user.email!,
-            full_name: user.name || user.email!.split("@")[0],
+            email: user.email,
+            full_name: user.name || user.email.split("@")[0] || "User",
             profile_photo: user.image || "",
             google_id: account.providerAccountId,
           });
@@ -147,8 +165,13 @@ export const authOptions: NextAuthOptions = {
           user.image = authResponse.user.profile_photo || user.image;
 
           return true;
-        } catch (error) {
+        } catch (error: any) {
           console.error("Google OAuth error:", error);
+          console.error("Error details:", {
+            message: error?.message,
+            response: error?.response?.data,
+            status: error?.response?.status,
+          });
 
           // Check if it's a specific error from our backend
           if (error instanceof Error) {
@@ -159,6 +182,10 @@ export const authOptions: NextAuthOptions = {
             }
             if (error.message.includes("different Google account")) {
               throw new Error("Email sudah terdaftar dengan akun Google yang berbeda.");
+            }
+            // Handle 403 Forbidden
+            if (error.message.includes("403") || error.message.includes("Forbidden")) {
+              throw new Error("Akses ditolak. Pastikan redirect URI terdaftar di Google Cloud Console.");
             }
             // Re-throw with original message for toast display
             throw error;
@@ -260,7 +287,21 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
+  // Ensure NEXTAUTH_URL is set correctly
+  ...(process.env.NEXTAUTH_URL && {
+    url: process.env.NEXTAUTH_URL,
+  }),
 };
+
+// Log configuration in development
+if (process.env.NODE_ENV === "development") {
+  console.log("[NextAuth Config]", {
+    hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+    hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+    nextAuthUrl: process.env.NEXTAUTH_URL,
+    nextAuthSecret: process.env.NEXTAUTH_SECRET ? "***" : "missing",
+  });
+}
 
 async function refreshAccessToken(token: {
   refreshToken?: string;

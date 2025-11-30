@@ -333,7 +333,7 @@ export default function ChatSidebar({ roomId, userId, isOpen, hideHeader = false
                     <div className="flex gap-2 max-w-[85%]">
                       {/* Avatar untuk pesan orang lain */}
                       <div className="shrink-0 w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-xs text-white font-semibold">
-                        {msg.user_name.charAt(0).toUpperCase()}
+                        {(msg.user_name || "U").charAt(0).toUpperCase()}
                       </div>
                       
                       {/* Container pesan */}

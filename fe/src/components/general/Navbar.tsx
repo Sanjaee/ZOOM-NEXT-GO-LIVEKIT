@@ -28,15 +28,17 @@ export default function Navbar() {
   };
 
   const getInitials = (name?: string | null, email?: string | null) => {
-    if (name) {
-      return name
+    if (name && name.trim()) {
+      const initials = name
         .split(" ")
+        .filter((n) => n && n.trim())
         .map((n) => n[0])
         .join("")
         .toUpperCase()
         .slice(0, 2);
+      return initials || "U";
     }
-    if (email) {
+    if (email && email.trim()) {
       return email[0].toUpperCase();
     }
     return "U";
