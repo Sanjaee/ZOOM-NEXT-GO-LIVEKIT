@@ -8,7 +8,7 @@ import Navbar from "@/components/general/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare, X, SwitchCamera } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageSquare, X, SwitchCamera, Monitor, MonitorOff } from "lucide-react";
 import ChatSidebar from "@/components/zoom/ChatSidebar";
 
 export default function ZoomCallPage() {
@@ -25,9 +25,13 @@ export default function ZoomCallPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user"); // Front/back camera
   const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenShareTrack, setScreenShareTrack] = useState<MediaStreamTrack | null>(null);
   
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const screenShareElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localScreenShareRef = useRef<HTMLVideoElement>(null);
   const isJoiningRef = useRef(false);
   const hasJoinedRef = useRef(false);
 
@@ -48,15 +52,41 @@ export default function ZoomCallPage() {
 
   const attachTrack = useCallback((track: Track, participant: RemoteParticipant) => {
     if (track.kind === "video") {
-      let videoEl = videoElementsRef.current.get(participant.identity);
-      if (!videoEl) {
-        videoEl = document.createElement("video");
-        videoEl.autoplay = true;
-        videoEl.playsInline = true;
-        videoEl.className = "w-full h-full object-cover rounded-lg";
-        videoElementsRef.current.set(participant.identity, videoEl);
+      // Check if this is a screen share track
+      const publication = participant.getTrackPublication(track.source);
+      const isScreenShare = publication?.source === Track.Source.ScreenShare;
+
+      if (isScreenShare) {
+        // Handle screen share track
+        let screenShareEl = screenShareElementsRef.current.get(participant.identity);
+        if (!screenShareEl) {
+          screenShareEl = document.createElement("video");
+          screenShareEl.autoplay = true;
+          screenShareEl.playsInline = true;
+          screenShareEl.className = "w-full h-full object-contain";
+          screenShareEl.style.width = "100%";
+          screenShareEl.style.height = "100%";
+          screenShareEl.style.objectFit = "contain";
+          screenShareEl.style.display = "block";
+          screenShareElementsRef.current.set(participant.identity, screenShareEl);
+        }
+        track.attach(screenShareEl);
+      } else {
+        // Handle camera track
+        let videoEl = videoElementsRef.current.get(participant.identity);
+        if (!videoEl) {
+          videoEl = document.createElement("video");
+          videoEl.autoplay = true;
+          videoEl.playsInline = true;
+          videoEl.className = "w-full h-full object-cover rounded-lg";
+          videoEl.style.width = "100%";
+          videoEl.style.height = "100%";
+          videoEl.style.objectFit = "cover";
+          videoEl.style.display = "block";
+          videoElementsRef.current.set(participant.identity, videoEl);
+        }
+        track.attach(videoEl);
       }
-      track.attach(videoEl);
     } else if (track.kind === "audio") {
       const audioEl = track.attach();
       document.body.appendChild(audioEl);
@@ -161,6 +191,12 @@ export default function ZoomCallPage() {
           videoEl.srcObject = null;
           videoElementsRef.current.delete(participant.identity);
         }
+        // Remove screen share element
+        const screenShareEl = screenShareElementsRef.current.get(participant.identity);
+        if (screenShareEl) {
+          screenShareEl.srcObject = null;
+          screenShareElementsRef.current.delete(participant.identity);
+        }
       });
 
       // Track subscribed
@@ -182,33 +218,59 @@ export default function ZoomCallPage() {
 
       // Local track published
       newRoom.on(RoomEvent.LocalTrackPublished, (publication) => {
-        console.log("Local track published:", publication.kind);
-        if (publication.kind === "video" && publication.track && localVideoRef.current) {
-          publication.track.attach(localVideoRef.current);
+        console.log("Local track published:", publication.kind, publication.source);
+        if (publication.kind === "video" && publication.track) {
+          if (publication.source === Track.Source.ScreenShare) {
+            // Handle screen share - only attach if not already attached via srcObject
+            console.log("[DEBUG] Screen share track published");
+            if (localScreenShareRef.current && !localScreenShareRef.current.srcObject) {
+              try {
+                publication.track.attach(localScreenShareRef.current);
+                console.log("[DEBUG] Screen share track attached via LiveKit attach()");
+              } catch (err) {
+                console.error("[DEBUG] Error attaching screen share track:", err);
+              }
+            }
+            setIsScreenSharing(true);
+          } else if (publication.source === Track.Source.Camera && localVideoRef.current) {
+            // Handle camera
+            publication.track.attach(localVideoRef.current);
+            setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
+          }
         }
         // Update state based on actual track state
         if (publication.kind === "audio") {
           setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
         }
-        if (publication.kind === "video") {
-          setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
-        }
       });
 
       // Local track unpublished
       newRoom.on(RoomEvent.LocalTrackUnpublished, (publication) => {
-        console.log("Local track unpublished:", publication.kind);
+        console.log("Local track unpublished:", publication.kind, publication.source);
         // Update state based on actual LiveKit state
         setIsMicMuted(!newRoom.localParticipant.isMicrophoneEnabled);
         setIsCameraOff(!newRoom.localParticipant.isCameraEnabled);
         
-        // Detach video element when camera is unpublished
+        // Detach video element when camera or screen share is unpublished
         if (publication.kind === "video") {
-          if (publication.track && localVideoRef.current) {
-            publication.track.detach();
-          }
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = null;
+          if (publication.source === Track.Source.ScreenShare) {
+            // Handle screen share
+            if (publication.track && localScreenShareRef.current) {
+              publication.track.detach();
+            }
+            if (localScreenShareRef.current) {
+              localScreenShareRef.current.srcObject = null;
+            }
+            setIsScreenSharing(false);
+            setScreenShareTrack(null);
+          } else if (publication.source === Track.Source.Camera) {
+            // Handle camera
+            if (publication.track && localVideoRef.current) {
+              publication.track.detach();
+            }
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = null;
+            }
           }
         }
       });
@@ -596,6 +658,132 @@ export default function ZoomCallPage() {
     }
   };
 
+  // Toggle screen sharing
+  const toggleScreenShare = async () => {
+    if (!room || room.state !== "connected") return;
+
+    try {
+      if (isScreenSharing) {
+        // Stop screen sharing
+        console.log("[DEBUG] Stopping screen share");
+        
+        // Unpublish screen share track
+        const screenSharePublication = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+        if (screenSharePublication?.track) {
+          // Store track reference before unpublishing
+          const track = screenSharePublication.track;
+          await room.localParticipant.unpublishTrack(track);
+          // Stop track after unpublishing
+          if (track.stop) {
+            track.stop();
+          }
+        }
+
+        // Also stop track from state if available
+        if (screenShareTrack && screenShareTrack.stop) {
+          screenShareTrack.stop();
+        }
+
+        // Clear local screen share element
+        if (localScreenShareRef.current) {
+          localScreenShareRef.current.srcObject = null;
+        }
+
+        // Clear state
+        setScreenShareTrack(null);
+        setIsScreenSharing(false);
+
+        toast({
+          title: "Screen Share Dihentikan",
+          description: "Berhenti membagikan layar",
+        });
+      } else {
+        // Start screen sharing
+        console.log("[DEBUG] Starting screen share");
+
+        // Request screen share
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: true, // Include system audio if available
+        });
+
+        // Get video track
+        const videoTrack = screenStream.getVideoTracks()[0];
+        if (!videoTrack) {
+          throw new Error("No video track in screen share");
+        }
+
+        // Handle track ended (user stops sharing from browser)
+        videoTrack.onended = () => {
+          console.log("[DEBUG] Screen share track ended by user");
+          // Clean up state
+          setIsScreenSharing(false);
+          setScreenShareTrack(null);
+          if (localScreenShareRef.current) {
+            localScreenShareRef.current.srcObject = null;
+          }
+          // Unpublish from room
+          const screenSharePublication = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+          if (screenSharePublication?.track) {
+            room.localParticipant.unpublishTrack(screenSharePublication.track).catch(console.error);
+          }
+        };
+
+        // Update state first so the video element is rendered
+        setScreenShareTrack(videoTrack);
+        setIsScreenSharing(true);
+
+        // Attach stream to local video element immediately
+        if (localScreenShareRef.current) {
+          localScreenShareRef.current.srcObject = screenStream;
+          console.log("[DEBUG] Screen share stream attached to local element");
+        }
+
+        // Publish screen share track to room
+        await room.localParticipant.publishTrack(videoTrack, {
+          name: "screen-share",
+          source: Track.Source.ScreenShare,
+        });
+        
+        console.log("[DEBUG] Screen share track published to room");
+
+        toast({
+          title: "Screen Share Dimulai",
+          description: "Layar Anda sedang dibagikan",
+        });
+      }
+    } catch (err: any) {
+      console.error("Error toggling screen share:", err);
+
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        toast({
+          title: "Izin Diperlukan",
+          description: "Izin untuk membagikan layar diperlukan",
+          variant: "default",
+        });
+      } else if (err.name === "NotFoundError" || err.name === "NotReadableError") {
+        toast({
+          title: "Tidak Dapat Mengakses Layar",
+          description: "Tidak dapat mengakses layar. Pastikan tidak ada aplikasi lain yang menggunakan layar.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Gagal membagikan layar",
+          variant: "destructive",
+        });
+      }
+
+      // Reset state on error
+      setIsScreenSharing(false);
+      setScreenShareTrack(null);
+    }
+  };
+
   const leaveRoom = async () => {
     if (room && room.state === "connected") {
       try {
@@ -642,10 +830,18 @@ export default function ZoomCallPage() {
     // Clear participants
     setParticipants(new Map());
     videoElementsRef.current.clear();
+    screenShareElementsRef.current.clear();
+
+    // Stop screen share track if active
+    if (screenShareTrack) {
+      screenShareTrack.stop();
+      setScreenShareTrack(null);
+    }
 
     // Reset state
     setIsMicMuted(false);
     setIsCameraOff(false);
+    setIsScreenSharing(false);
 
     // Small delay to ensure cleanup is complete
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -743,6 +939,24 @@ export default function ZoomCallPage() {
           {/* Video Grid */}
           <div className="flex-1 p-3 sm:p-6 overflow-auto transition-all duration-300 min-h-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 max-w-7xl mx-auto">
+              {/* Local Screen Share (if sharing) */}
+              {isScreenSharing && (
+                <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-2 border-blue-500">
+                  <video
+                    ref={localScreenShareRef}
+                    className="w-full h-full object-contain"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 flex items-center gap-1.5">
+                    <span className="bg-blue-600/90 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm">
+                      Layar Anda
+                    </span>
+                  </div>
+                </Card>
+              )}
+              
               {/* Local Video */}
               <Card className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
                 <video
@@ -783,39 +997,66 @@ export default function ZoomCallPage() {
                 // Check actual status from participant
                 const micPublication = participant.getTrackPublication(Track.Source.Microphone);
                 const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
+                const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
                 const actualMicMuted = !micPublication?.isSubscribed || micPublication.isMuted;
                 const actualCameraOff = !cameraPublication?.isSubscribed || !cameraPublication.track;
+                const hasScreenShare = screenSharePublication?.isSubscribed && screenSharePublication.track;
                 
                 return (
-                  <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
-                    <div
-                      ref={(el) => {
-                        if (el) {
-                          const videoEl = videoElementsRef.current.get(identity);
-                          if (videoEl && !el.contains(videoEl)) {
-                            el.appendChild(videoEl);
+                  <>
+                    {/* Remote Screen Share (if sharing) */}
+                    {hasScreenShare && (
+                      <Card key={`${identity}-screenshare`} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-2 border-blue-500">
+                        <div
+                          ref={(el) => {
+                            if (el) {
+                              const screenShareEl = screenShareElementsRef.current.get(identity);
+                              if (screenShareEl && !el.contains(screenShareEl)) {
+                                el.appendChild(screenShareEl);
+                              }
+                            }
+                          }}
+                          className="w-full h-full"
+                        />
+                        <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 flex items-center gap-1.5">
+                          <span className="bg-blue-600/90 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm truncate max-w-[80%]">
+                            {identity} - Layar
+                          </span>
+                        </div>
+                      </Card>
+                    )}
+                    
+                    {/* Remote Camera */}
+                    <Card key={identity} className="relative p-0 aspect-video bg-gray-800 overflow-hidden border-0">
+                      <div
+                        ref={(el) => {
+                          if (el) {
+                            const videoEl = videoElementsRef.current.get(identity);
+                            if (videoEl && !el.contains(videoEl)) {
+                              el.appendChild(videoEl);
+                            }
                           }
-                        }
-                      }}
-                      className="w-full h-full"
-                    />
-                    <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm truncate max-w-[80%]">
-                      {identity}
-                    </div>
-                    {/* Status Icons Overlay */}
-                    <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex gap-1 sm:gap-2">
-                      {actualMicMuted && (
-                        <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
-                          <MicOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
-                        </div>
-                      )}
-                      {actualCameraOff && (
-                        <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
-                          <VideoOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
-                        </div>
-                      )}
-                    </div>
-                  </Card>
+                        }}
+                        className="w-full h-full"
+                      />
+                      <div className="absolute bottom-1.5 sm:bottom-2 left-1.5 sm:left-2 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm truncate max-w-[80%]">
+                        {identity}
+                      </div>
+                      {/* Status Icons Overlay */}
+                      <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex gap-1 sm:gap-2">
+                        {actualMicMuted && (
+                          <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                            <MicOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                          </div>
+                        )}
+                        {actualCameraOff && (
+                          <div className="bg-red-600/90 rounded-full p-1 sm:p-1.5">
+                            <VideoOff className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  </>
                 );
               })}
             </div>
@@ -921,6 +1162,25 @@ export default function ZoomCallPage() {
           >
             <SwitchCamera className={`h-5 w-5 sm:h-6 sm:w-6 ${isSwitchingCamera ? "animate-spin" : ""}`} />
           </Button>
+          
+          {/* Screen Share Button */}
+          <Button
+            onClick={toggleScreenShare}
+            size="lg"
+            className={`rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 ${
+              isScreenSharing
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-700 hover:bg-gray-600"
+            }`}
+            title={isScreenSharing ? "Berhenti membagikan layar" : "Bagikan layar"}
+          >
+            {isScreenSharing ? (
+              <MonitorOff className="h-5 w-5 sm:h-6 sm:w-6" />
+            ) : (
+              <Monitor className="h-5 w-5 sm:h-6 sm:w-6" />
+            )}
+          </Button>
+          
           <Button
             onClick={leaveRoom}
             size="lg"
