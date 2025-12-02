@@ -2,42 +2,11 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { api, TokenManager } from "../../../lib/api";
-
-// Validate Google OAuth configuration
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-const nextAuthUrl = process.env.NEXTAUTH_URL;
-
-if (!googleClientId || !googleClientSecret) {
-  console.error("[NextAuth] Missing Google OAuth credentials. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
-}
-
-if (!nextAuthUrl) {
-  console.warn("[NextAuth] NEXTAUTH_URL is not set. This may cause redirect URI issues.");
-}
-
-// Log expected redirect URI for debugging
-if (nextAuthUrl && googleClientId) {
-  const expectedRedirectUri = `${nextAuthUrl}/api/auth/callback/google`;
-  console.log("[NextAuth] Expected Google OAuth redirect URI:", expectedRedirectUri);
-  console.log("[NextAuth] Make sure this URI is added to Google Cloud Console:");
-  console.log("[NextAuth] 1. Go to https://console.cloud.google.com/apis/credentials");
-  console.log("[NextAuth] 2. Select your OAuth 2.0 Client ID");
-  console.log("[NextAuth] 3. Add authorized redirect URI:", expectedRedirectUri);
-}
-
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: googleClientId || "",
-      clientSecret: googleClientSecret || "",
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-        },
-      },
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
     CredentialsProvider({
       id: "credentials",
@@ -162,20 +131,9 @@ export const authOptions: NextAuthOptions = {
       // Handle Google OAuth
       if (account?.provider === "google") {
         try {
-          // Validate required fields
-          if (!user.email) {
-            console.error("Google OAuth: Missing email");
-            throw new Error("Email tidak ditemukan dari akun Google");
-          }
-
-          if (!account.providerAccountId) {
-            console.error("Google OAuth: Missing providerAccountId");
-            throw new Error("ID Google tidak ditemukan");
-          }
-
           const authResponse = await api.googleOAuth({
-            email: user.email,
-            full_name: user.name || user.email.split("@")[0] || "User",
+            email: user.email!,
+            full_name: user.name || user.email!.split("@")[0],
             profile_photo: user.image || "",
             google_id: account.providerAccountId,
           });
@@ -189,25 +147,8 @@ export const authOptions: NextAuthOptions = {
           user.image = authResponse.user.profile_photo || user.image;
 
           return true;
-        } catch (error: any) {
+        } catch (error) {
           console.error("Google OAuth error:", error);
-          console.error("Error details:", {
-            message: error?.message,
-            response: error?.response?.data,
-            status: error?.response?.status,
-            stack: error?.stack,
-          });
-
-          // Log additional diagnostic information
-          const nextAuthUrl = process.env.NEXTAUTH_URL;
-          const expectedRedirectUri = nextAuthUrl ? `${nextAuthUrl}/api/auth/callback/google` : "N/A";
-          console.error("[Google OAuth] Diagnostic info:", {
-            hasClientId: !!googleClientId,
-            hasClientSecret: !!googleClientSecret,
-            nextAuthUrl: nextAuthUrl || "NOT SET",
-            expectedRedirectUri,
-            errorType: error?.constructor?.name,
-          });
 
           // Check if it's a specific error from our backend
           if (error instanceof Error) {
@@ -218,20 +159,6 @@ export const authOptions: NextAuthOptions = {
             }
             if (error.message.includes("different Google account")) {
               throw new Error("Email sudah terdaftar dengan akun Google yang berbeda.");
-            }
-            // Handle 403 Forbidden - provide detailed guidance
-            if (error.message.includes("403") || error.message.includes("Forbidden")) {
-              const redirectUriMessage = nextAuthUrl 
-                ? `\n\nRedirect URI yang diperlukan: ${expectedRedirectUri}\nPastikan URI ini ditambahkan di Google Cloud Console.`
-                : "\n\nPERINGATAN: NEXTAUTH_URL tidak diset. Pastikan environment variable NEXTAUTH_URL diset dengan benar.";
-              throw new Error(
-                `Akses ditolak oleh Google OAuth.${redirectUriMessage}\n\n` +
-                `Langkah perbaikan:\n` +
-                `1. Pastikan GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET benar\n` +
-                `2. Tambahkan redirect URI di Google Cloud Console\n` +
-                `3. Pastikan OAuth consent screen sudah dikonfigurasi\n` +
-                `4. Pastikan Google+ API atau Google Identity API sudah diaktifkan`
-              );
             }
             // Re-throw with original message for toast display
             throw error;
@@ -316,7 +243,6 @@ export const authOptions: NextAuthOptions = {
       session.isVerified = token.isVerified as boolean;
       session.userType = token.userType as string;
       session.loginType = token.loginType as string;
-      
       return session;
     },
   },
@@ -333,21 +259,7 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
-  // Ensure NEXTAUTH_URL is set correctly
-  ...(process.env.NEXTAUTH_URL && {
-    url: process.env.NEXTAUTH_URL,
-  }),
 };
-
-// Log configuration in development and production (for debugging)
-console.log("[NextAuth Config]", {
-  hasGoogleClientId: !!googleClientId,
-  hasGoogleClientSecret: !!googleClientSecret,
-  nextAuthUrl: nextAuthUrl || "NOT SET",
-  nextAuthSecret: process.env.NEXTAUTH_SECRET ? "***" : "missing",
-  expectedRedirectUri: nextAuthUrl ? `${nextAuthUrl}/api/auth/callback/google` : "N/A",
-  nodeEnv: process.env.NODE_ENV,
-});
 
 async function refreshAccessToken(token: {
   refreshToken?: string;
