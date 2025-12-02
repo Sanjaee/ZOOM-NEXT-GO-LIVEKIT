@@ -189,7 +189,7 @@ export const authOptions: NextAuthOptions = {
       if (trigger === "update" && token.accessToken) {
         try {
           // Fetch updated user data from backend
-          const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+          const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://zoom.zacloth.com";
           const userResponse = await fetch(`${backendUrl}/api/v1/auth/me`, {
             headers: {
               Authorization: `Bearer ${token.accessToken}`,
