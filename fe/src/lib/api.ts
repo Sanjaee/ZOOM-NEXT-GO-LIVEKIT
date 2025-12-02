@@ -17,7 +17,13 @@ import type {
 
 // Use environment variable or relative URL for production
 // In production with nginx, API is on same domain under /api path
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+// For server-side calls (NextAuth), use internal Docker network URL
+// For client-side calls, use public API URL
+const isServer = typeof window === "undefined";
+
+const API_BASE_URL = isServer
+  ? process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+  : process.env.NEXT_PUBLIC_API_URL || "";
 
 class ApiClient {
   private baseURL: string;
