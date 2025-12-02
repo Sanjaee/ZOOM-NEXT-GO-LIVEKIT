@@ -181,8 +181,22 @@ func initRabbitMQWithRetry(cfg *config.Config) *util.RabbitMQClient {
 
 func corsMiddleware(clientURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", clientURL)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := c.Request.Header.Get("Origin")
+
+		// Allow requests from client URL or if no origin (server-to-server requests from Next.js)
+		// Server-side NextAuth requests don't have Origin header, so we allow them
+		if origin == "" {
+			// Server-to-server request (e.g., from Next.js API route)
+			// Allow it but don't set CORS headers (not needed for server-to-server)
+		} else if origin == clientURL {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", clientURL)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			// For other origins, still set to clientURL for security
+			c.Writer.Header().Set("Access-Control-Allow-Origin", clientURL)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
