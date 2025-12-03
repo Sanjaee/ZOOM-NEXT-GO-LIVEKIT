@@ -25,8 +25,13 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 
 	r := gin.Default()
 
-	// CORS middleware
-	r.Use(corsMiddleware(cfg.ClientURL))
+	// CORS middleware - allow multiple origins
+	allowedOrigins := []string{
+		cfg.ClientURL,
+		"https://fe-zoom-livekit.vercel.app",
+		"https://zoom.zacloth.com",
+	}
+	r.Use(corsMiddleware(allowedOrigins))
 
 	// Initialize database
 	db, err := initDB(cfg)
@@ -179,26 +184,33 @@ func initRabbitMQWithRetry(cfg *config.Config) *util.RabbitMQClient {
 	return nil
 }
 
-func corsMiddleware(clientURL string) gin.HandlerFunc {
+func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Allow requests from client URL or if no origin (server-to-server requests from Next.js)
-		// Server-side NextAuth requests don't have Origin header, so we allow them
+		// Check if origin is in allowed list
+		allowed := false
 		if origin == "" {
 			// Server-to-server request (e.g., from Next.js API route)
 			// Allow it but don't set CORS headers (not needed for server-to-server)
-		} else if origin == clientURL {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", clientURL)
-			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			allowed = true
 		} else {
-			// For other origins, still set to clientURL for security
-			c.Writer.Header().Set("Access-Control-Allow-Origin", clientURL)
-			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			// Check if origin is in allowed list
+			for _, allowedOrigin := range allowedOrigins {
+				if origin == allowedOrigin {
+					allowed = true
+					c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+					c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+					break
+				}
+			}
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		// Set CORS headers for allowed origins
+		if allowed && origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		}
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
