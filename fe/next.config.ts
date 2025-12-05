@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  // For Next.js standalone mode, server-side env vars are available at runtime
+  // We don't need to expose KOLOSAL_API_KEY via env config since it's server-only
+  // The env var will be available via process.env.KOLOSAL_API_KEY at runtime
 };
 
 export default nextConfig;

@@ -4,10 +4,20 @@ import { request } from "undici";
 const KOLOSAL_API_BASE = "https://api.kolosal.ai/v1/agent";
 
 function getKolosalApiKey(): string {
+  // In Next.js standalone mode, process.env is available at runtime
+  // Environment variables from docker-compose.yml are injected at container startup
   const apiKey = process.env.KOLOSAL_API_KEY;
+  
   if (!apiKey) {
+    // Log available env vars for debugging (without exposing sensitive data)
+    const envKeys = Object.keys(process.env || {}).filter(key => 
+      key.includes('KOLOSAL') || key.includes('API')
+    );
+    console.error("KOLOSAL_API_KEY not found. Available env keys:", envKeys);
+    console.error("All process.env keys:", Object.keys(process.env || {}));
     throw new Error("KOLOSAL_API_KEY environment variable is not set");
   }
+  
   return `Bearer ${apiKey}`;
 }
 

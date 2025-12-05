@@ -4,10 +4,18 @@ import { request } from "undici";
 const KOLOSAL_API_BASE = "https://api.kolosal.ai/v1/workspaces";
 
 function getKolosalApiKey(): string {
+  // In Next.js standalone mode, process.env is available at runtime
   const apiKey = process.env.KOLOSAL_API_KEY;
+  
   if (!apiKey) {
+    // Log available env vars for debugging
+    const envKeys = Object.keys(process.env || {}).filter(key => 
+      key.includes('KOLOSAL') || key.includes('API')
+    );
+    console.error("Workspace: KOLOSAL_API_KEY not found. Available env keys:", envKeys);
     throw new Error("KOLOSAL_API_KEY environment variable is not set");
   }
+  
   return `Bearer ${apiKey}`;
 }
 
