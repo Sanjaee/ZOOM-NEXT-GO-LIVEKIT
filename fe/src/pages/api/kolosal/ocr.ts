@@ -5,7 +5,7 @@ const KOLOSAL_API_BASE = "https://api.kolosal.ai";
 
 function getKolosalApiKey(): string {
   // In Next.js standalone mode, process.env is available at runtime
-  const apiKey = process.env.NEXT_PUBLIC_KOLOSAL_API_KEY;
+  const apiKey = "kol_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZDE0OWZkY2MtMTRhOS00MzYwLWI3YWQtY2IxMzhmODk5MGYwIiwia2V5X2lkIjoiZGFhY2I3MGYtY2FjOS00ZDg1LTgyYjYtMzVlOTEwN2I1ZmRhIiwia2V5X25hbWUiOiJ0ZXN0IiwiZW1haWwiOiJhZnJpemFhaG1hZDE4QGdtYWlsLmNvbSIsInJhdGVfbGltaXRfcnBzIjpudWxsLCJtYXhfY3JlZGl0X3VzZSI6MTAsImNyZWF0ZWRfYXQiOjE3NjQ1MTU3NDksImV4cGlyZXNfYXQiOjE3OTYwNTE3NDksImlhdCI6MTc2NDUxNTc0OX0.FJohjYxWBeeKm2XSl3zrZHA3_PyOQFbTD9iQSsZiW_M";
   
   if (!apiKey) {
     // Log available env vars for debugging
