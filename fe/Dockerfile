@@ -31,6 +31,9 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Install necessary runtime dependencies
+RUN apk add --no-cache libc6-compat
+
 # Copy necessary files
 COPY --from=builder /app/public ./public
 
@@ -44,5 +47,8 @@ EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+
+# Increase Node.js memory limit for large image processing
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 CMD ["node", "server.js"]

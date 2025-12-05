@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.googleusercontent.com' },
     ],
   },
+  // Ensure API routes work correctly in standalone mode
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
 };
 
 export default nextConfig;

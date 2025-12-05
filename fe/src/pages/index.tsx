@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Space_Grotesk, Outfit } from "next/font/google";
 import Navbar from "@/components/general/Navbar";
+import { Chatbot } from "@/components/ui/Chatbot";
 
 // Generate particles outside component (runs once at module load)
 const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
@@ -58,7 +59,7 @@ export default function Home() {
     >
       {/* Navbar */}
       <Navbar />
-
+      <Chatbot />
       {/* Animated gradient background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Primary gradient orbs */}
