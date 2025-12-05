@@ -28,7 +28,6 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 	// CORS middleware - allow multiple origins
 	allowedOrigins := []string{
 		cfg.ClientURL,
-		"https://fe-zoom-livekit.vercel.app",
 		"https://zoom.zacloth.com",
 		"https://hackathon-zoom-ai-kolosal.vercel.app",
 	}
