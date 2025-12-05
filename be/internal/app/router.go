@@ -30,6 +30,7 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 		cfg.ClientURL,
 		"https://fe-zoom-livekit.vercel.app",
 		"https://zoom.zacloth.com",
+		"https://hackathon-zoom-ai-kolosal.vercel.app",
 	}
 	r.Use(corsMiddleware(allowedOrigins))
 
