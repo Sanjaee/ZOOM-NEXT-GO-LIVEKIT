@@ -73,7 +73,6 @@ export default function ResetPassword() {
       // Redirect to verify OTP page
       router.push("/auth/verify-otp-reset");
     } catch (error) {
-      console.error("Request reset password error:", error);
       toast({
         title: "❌ Gagal Mengirim OTP",
         description:
@@ -162,7 +161,6 @@ export default function ResetPassword() {
         router.push("/auth/login");
       }
     } catch (error) {
-      console.error("Reset password error:", error);
       toast({
         title: "❌ Reset Gagal",
         description:

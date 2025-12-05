@@ -152,8 +152,6 @@ export default function Register() {
         router.push("/auth/login");
       }
     } catch (error) {
-      console.error("Registration error:", error);
-
       let errorTitle = "❌ Pendaftaran Gagal";
       let errorDescription = "Terjadi kesalahan saat mendaftar. Silakan coba lagi.";
 

@@ -121,8 +121,6 @@ export default function VerifyResetPassword() {
       // Redirect to login page - user must login with new password
       router.push("/auth/login");
     } catch (error) {
-      console.error("Verify reset password error:", error);
-      
       // Parse error message from backend
       let errorMessage = "Terjadi kesalahan saat verifikasi. Silakan coba lagi atau hubungi support.";
       let shouldRedirectToOTP = false;

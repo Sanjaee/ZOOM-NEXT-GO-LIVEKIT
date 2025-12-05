@@ -100,7 +100,6 @@ export default function VerifyOtp() {
         router.push(`/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
       }
     } catch (error) {
-      console.error("Email verification error:", error);
       toast({
         title: "❌ Verifikasi Gagal",
         description:
@@ -272,7 +271,6 @@ export default function VerifyOtp() {
         }
       }
     } catch (error) {
-      console.error("Verification error:", error);
       toast({
         title: "❌ Verifikasi Gagal",
         description:
@@ -332,7 +330,6 @@ export default function VerifyOtp() {
       setOtp(["", "", "", "", "", ""]); // Clear current OTP
       setLastVerificationTime(0); // Reset verification time
     } catch (error) {
-      console.error("Resend OTP error:", error);
       toast({
         title: "❌ Gagal Mengirim",
         description:

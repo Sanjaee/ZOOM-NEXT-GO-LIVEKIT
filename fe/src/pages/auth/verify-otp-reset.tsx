@@ -147,7 +147,6 @@ export default function VerifyOtpReset() {
       // Redirect to reset password page
       router.push("/auth/verify-reset-password");
     } catch (error) {
-      console.error("Verify OTP error:", error);
       toast({
         title: "❌ Verifikasi Gagal",
         description:
@@ -205,7 +204,6 @@ export default function VerifyOtpReset() {
       setOtp(["", "", "", "", "", ""]); // Clear current OTP
       setLastVerificationTime(0); // Reset verification time
     } catch (error) {
-      console.error("Resend reset password error:", error);
       toast({
         title: "❌ Gagal Mengirim",
         description:

@@ -124,8 +124,6 @@ export default function VerifyEmail() {
         }
       }
     } catch (error) {
-      console.error("Verification error:", error);
-
       let errorMessage = "Token tidak valid atau sudah kedaluwarsa. Silakan request ulang.";
 
       if (error instanceof Error) {

@@ -116,7 +116,6 @@ class ApiClient {
 
       return data;
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
       throw error;
     }
   }
@@ -236,17 +235,12 @@ class ApiClient {
   }
 
   async joinRoom(roomId: string) {
-    console.log("[API] Joining room:", roomId);
-    console.log("[API] Access token:", this.accessToken ? "exists" : "missing");
     try {
       const response = await this.request(`/api/v1/rooms/${roomId}/join`, {
         method: "POST",
       });
-      console.log("[API] Join room success:", response);
       return response;
     } catch (error: any) {
-      console.error("[API] Join room error:", error);
-      console.error("[API] Error response:", error.response);
       throw error;
     }
   }
@@ -311,7 +305,6 @@ export class TokenManager {
       this.setTokens(response.access_token, response.refresh_token);
       return response.access_token;
     } catch (error) {
-      console.error("Token refresh failed:", error);
       this.clearTokens();
       return null;
     }
